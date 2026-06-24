@@ -1,0 +1,9 @@
+#ifndef BOLR_DYNAMICS_H
+#define BOLR_DYNAMICS_H
+
+#include "bolr/array.h"
+
+bolr_status bolr_additive_transition_covariance(bolr_const_matrix_view posterior_covariance, bolr_const_matrix_view process_noise, bolr_matrix_view output_covariance);
+bolr_status bolr_heterogeneous_discount_covariance(bolr_const_matrix_view posterior_covariance, bolr_const_vector_view block_scale, bolr_matrix_view output_covariance);
+
+#endif

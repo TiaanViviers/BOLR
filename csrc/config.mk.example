@@ -1,0 +1,12 @@
+CC ?= gcc
+AR ?= ar
+RANLIB ?= ranlib
+PREFIX ?= /usr/local
+DESTDIR ?=
+CPPFLAGS ?=
+CFLAGS ?=
+LDFLAGS ?=
+LDLIBS ?=
+BUILD_DIR ?= build
+BLAS_LIBS ?=
+LAPACK_LIBS ?=
