@@ -1,0 +1,31 @@
+{
+  "fixture": "composite_reference",
+  "layout": {
+    "blocks": [
+      {
+        "dynamic": true,
+        "metadata": {
+          "parameter_family": "surface",
+          "type": "dynamic_surface"
+        },
+        "name": "surface",
+        "parameter_family": "surface",
+        "shape": [
+          2
+        ],
+        "start": 0,
+        "stop": 2,
+        "vectorization_order": "C"
+      }
+    ],
+    "total_dimension": 2
+  },
+  "schema_version": "phase_g_v1",
+  "tolerances": {
+    "covariances_relative_error": 1e-08,
+    "forward_scores_relative_error": 1e-12,
+    "gradients_relative_error": 1e-10,
+    "hvps_relative_error": 1e-09,
+    "posterior_modes_relative_error": 1e-09
+  }
+}

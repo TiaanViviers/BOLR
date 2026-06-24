@@ -1,0 +1,8 @@
+{
+  "description": "Deterministic Phase K posterior decision fixture",
+  "schema_version": "phase_k_v1",
+  "tolerances": {
+    "covariance_relative_error": 1e-12,
+    "probability_relative_error": 1e-12
+  }
+}

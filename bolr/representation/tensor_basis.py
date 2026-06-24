@@ -15,6 +15,7 @@ class CandidateBasis:
     reduced_basis: np.ndarray
     column_mean: np.ndarray
     projection: np.ndarray
+    lift_matrix: np.ndarray
 
 
 class TensorProductBasis:
@@ -41,6 +42,7 @@ class TensorProductBasis:
             reduced_basis=reduced,
             column_mean=original.mean(axis=0),
             projection=projection,
+            lift_matrix=projection,
         )
         return self
 
@@ -59,6 +61,7 @@ class TensorProductBasis:
             reduced_basis=reduced,
             column_mean=self.state.column_mean,
             projection=self.state.projection,
+            lift_matrix=self.state.lift_matrix,
         )
 
     def fit_transform(self, coordinates: np.ndarray) -> CandidateBasis:

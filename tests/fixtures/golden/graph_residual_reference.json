@@ -1,0 +1,13 @@
+{
+  "fixture": "graph_residual_reference",
+  "schema_version": "phase_i_v1",
+  "node_count": 9,
+  "edge_count": 12,
+  "residual_dimension": 3,
+  "tolerances": {
+    "projector_relative_error": 1e-10,
+    "subspace_projector_relative_error": 1e-08,
+    "posterior_modes_relative_error": 1e-09,
+    "posterior_covariances_relative_error": 1e-08
+  }
+}

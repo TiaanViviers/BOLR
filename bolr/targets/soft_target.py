@@ -6,6 +6,7 @@ import numpy as np
 
 from bolr.config.foundation import SoftTargetConfig
 from bolr.numerics.stable_math import softmax
+from bolr.targets.base import TargetBuilder
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,32 @@ class Observation:
     tolerance: float
     update_weight: float
     metadata: dict[str, float | int | bool]
+
+
+class SoftTargetBuilder(TargetBuilder):
+    def __init__(self, config: SoftTargetConfig | None = None) -> None:
+        self.config = config or SoftTargetConfig()
+
+    def build(
+        self,
+        utilities: np.ndarray,
+        *,
+        date: object | None = None,
+        candidate_metadata: object | None = None,
+    ) -> Observation:
+        del date, candidate_metadata
+        return build_soft_target_observation(utilities, self.config)
+
+    def metadata(self) -> dict[str, object]:
+        return {
+            "family": "candidate_a_soft_target",
+            "kappa": self.config.kappa,
+            "eta": self.config.eta,
+            "clip": self.config.clip,
+            "absolute_tolerance": self.config.absolute_tolerance,
+            "relative_tolerance": self.config.relative_tolerance,
+            "min_scale": self.config.min_scale,
+        }
 
 
 def build_soft_target_observation(

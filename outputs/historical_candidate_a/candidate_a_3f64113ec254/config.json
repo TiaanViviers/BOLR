@@ -1,0 +1,6 @@
+{
+  "candidate_basis_rank": 47,
+  "random_walk_variance": 0.05,
+  "sigma0": 1.0,
+  "warm_up_days": 504
+}

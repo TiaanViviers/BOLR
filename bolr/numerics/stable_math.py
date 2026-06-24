@@ -18,6 +18,15 @@ def softmax(values: np.ndarray) -> np.ndarray:
     return np.exp(log_softmax(values))
 
 
+def softplus(values: np.ndarray) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    positive = values > 0.0
+    result = np.empty_like(values, dtype=float)
+    result[positive] = values[positive] + np.log1p(np.exp(-values[positive]))
+    result[~positive] = np.log1p(np.exp(values[~positive]))
+    return result
+
+
 def cross_entropy(target: np.ndarray, predicted_log_probs: np.ndarray) -> float:
     target = np.asarray(target, dtype=float)
     predicted_log_probs = np.asarray(predicted_log_probs, dtype=float)

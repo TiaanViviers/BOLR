@@ -1,0 +1,13 @@
+{
+  "fixture": "structured_prior_reference",
+  "schema_version": "phase_h_v1",
+  "surface_dimension": 3,
+  "raw_tensor_dimension": 12,
+  "reduced_tensor_dimension": 11,
+  "tolerances": {
+    "penalty_relative_error": 1e-12,
+    "posterior_modes_relative_error": 1e-09,
+    "posterior_covariances_relative_error": 1e-08,
+    "innovation_relative_error": 1e-09
+  }
+}
