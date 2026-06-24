@@ -103,7 +103,8 @@ debug:
 release:
 	$(MAKE) BUILD=release all
 sanitize:
-	$(MAKE) BUILD=sanitize clean all tests
+	$(MAKE) BUILD=sanitize clean
+	$(MAKE) BUILD=sanitize all tests
 	ASAN_OPTIONS=detect_leaks=0 $(BUILD_DIR)/sanitize/tests/bolr_tests
 install: all
 	install -d $(DESTDIR)$(PREFIX)/include/bolr $(DESTDIR)$(PREFIX)/lib
@@ -115,13 +116,19 @@ uninstall:
 	rm -rf $(DESTDIR)$(PREFIX)/include/bolr
 clean:
 	rm -rf $(BUILD_DIR)
-distclean: clean
+distclean:
+	rm -rf build
 	rm -f config.mk
 print-config:
 	@echo BUILD=$(BUILD)
 	@echo CC=$(CC)
 	@echo PREFIX=$(PREFIX)
 	@echo BUILD_DIR=$(BUILD_DIR)
+	@echo OUT_DIR=$(OUT_DIR)
+	@echo LIB_SHARED=$(LIB_SHARED)
+	@echo ALL_CFLAGS=$(ALL_CFLAGS)
+	@echo LDFLAGS=$(LDFLAGS)
+	@echo ALL_LDLIBS=$(ALL_LDLIBS)
 	@echo BLAS_LIBS=$(BLAS_LIBS)
 	@echo LAPACK_LIBS=$(LAPACK_LIBS)
 

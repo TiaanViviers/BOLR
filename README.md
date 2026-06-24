@@ -14,6 +14,7 @@ Bayesian Online Listwise Ranking for applications to quantative trading
 - Phase J: generic composite replay, causal adaptive transition policies, online surprise standardisation, BOCPD-backed adaptation, and adaptive golden fixtures are implemented
 - Phase K: predictive posterior decision objects, Monte Carlo ranking probabilities, connected-region inference, calibration metrics, decision-policy replay integration, and Phase K golden fixtures are implemented
 - Phase L1: pure-C11 backend foundation, Make build, versioned ABI, allocator/ownership model, checkpoint-ready handles, Candidate A reference kernels, ctypes binding, and initial Python/C equivalence harness are implemented
+- Phase L2: Python-accessible C Gaussian inference integration is complete for Candidate A, including C-owned state/layout/model handles, composite Laplace updates, bounded historical replay equivalence, sequential checkpoint continuity, backend ownership/error handling, isolated build profiles, and a concurrency-safe Python loader; Candidate B, adaptation, decisions, and RNG remain unported
 
 ## Phase A/B Baseline
 

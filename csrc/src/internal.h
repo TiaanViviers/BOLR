@@ -40,10 +40,13 @@ struct bolr_inference_workspace {
     bolr_real *score_gradient;
     bolr_real *score_hvp;
     bolr_real *parameter_gradient;
+    bolr_real *parameter_curvature;
     bolr_real *parameter_hvp;
     bolr_real *newton_step;
+    bolr_real *current_state;
     bolr_real *trial_state;
     bolr_real *trial_scores;
+    bolr_real *prior_cholesky;
     bolr_real *dense_hessian;
     bolr_real *damped_hessian;
     bolr_real *posterior_covariance;

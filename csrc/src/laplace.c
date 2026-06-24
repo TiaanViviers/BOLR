@@ -35,10 +35,13 @@ bolr_status bolr_inference_workspace_create(
         (alloc_buffer(active, (size_t) candidate_count, &workspace->score_gradient) != BOLR_OK) ||
         (alloc_buffer(active, (size_t) candidate_count, &workspace->score_hvp) != BOLR_OK) ||
         (alloc_buffer(active, (size_t) state_dimension, &workspace->parameter_gradient) != BOLR_OK) ||
+        (alloc_buffer(active, (size_t) state_dimension, &workspace->parameter_curvature) != BOLR_OK) ||
         (alloc_buffer(active, (size_t) state_dimension, &workspace->parameter_hvp) != BOLR_OK) ||
         (alloc_buffer(active, (size_t) state_dimension, &workspace->newton_step) != BOLR_OK) ||
+        (alloc_buffer(active, (size_t) state_dimension, &workspace->current_state) != BOLR_OK) ||
         (alloc_buffer(active, (size_t) state_dimension, &workspace->trial_state) != BOLR_OK) ||
         (alloc_buffer(active, (size_t) candidate_count, &workspace->trial_scores) != BOLR_OK) ||
+        (alloc_buffer(active, (size_t) (state_dimension * state_dimension), &workspace->prior_cholesky) != BOLR_OK) ||
         (alloc_buffer(active, (size_t) (state_dimension * state_dimension), &workspace->dense_hessian) != BOLR_OK) ||
         (alloc_buffer(active, (size_t) (state_dimension * state_dimension), &workspace->damped_hessian) != BOLR_OK) ||
         (alloc_buffer(active, (size_t) (state_dimension * state_dimension), &workspace->posterior_covariance) != BOLR_OK) ||
@@ -62,10 +65,13 @@ void bolr_inference_workspace_destroy(bolr_inference_workspace *workspace) {
     bolr_allocator_free(workspace->allocator, workspace->score_gradient);
     bolr_allocator_free(workspace->allocator, workspace->score_hvp);
     bolr_allocator_free(workspace->allocator, workspace->parameter_gradient);
+    bolr_allocator_free(workspace->allocator, workspace->parameter_curvature);
     bolr_allocator_free(workspace->allocator, workspace->parameter_hvp);
     bolr_allocator_free(workspace->allocator, workspace->newton_step);
+    bolr_allocator_free(workspace->allocator, workspace->current_state);
     bolr_allocator_free(workspace->allocator, workspace->trial_state);
     bolr_allocator_free(workspace->allocator, workspace->trial_scores);
+    bolr_allocator_free(workspace->allocator, workspace->prior_cholesky);
     bolr_allocator_free(workspace->allocator, workspace->dense_hessian);
     bolr_allocator_free(workspace->allocator, workspace->damped_hessian);
     bolr_allocator_free(workspace->allocator, workspace->posterior_covariance);
@@ -138,10 +144,10 @@ static bolr_status objective_gradient_hessian(
         for (j = 0; j < dim; ++j) {
             for (i = 0; i < dim; ++i) workspace->identity_rhs[i] = (i == j) ? 1.0 : 0.0;
             if (prior_solve(prior_chol, dim, workspace->identity_rhs, workspace->parameter_hvp) != BOLR_OK) return BOLR_NUMERICAL_FAILURE;
-            if (compute_dynamic_scores(model, workspace->identity_rhs, context, workspace, workspace->score_hvp) != BOLR_OK) return BOLR_NUMERICAL_FAILURE;
-            if (observation->curvature_hvp(observation->context, (bolr_const_vector_view){workspace->score_vector, n, 1}, (bolr_const_vector_view){workspace->score_hvp, n, 1}, (bolr_vector_view){workspace->score_hvp, n, 1}, NULL) != BOLR_OK) return BOLR_NUMERICAL_FAILURE;
-            if (bolr_model_transpose(model, (bolr_const_vector_view){workspace->score_hvp, n, 1}, context, (bolr_vector_view){workspace->parameter_gradient, dim, 1}, workspace->score_workspace) != BOLR_OK) return BOLR_NUMERICAL_FAILURE;
-            for (i = 0; i < dim; ++i) out_hessian[i * dim + j] = workspace->parameter_hvp[i] + workspace->parameter_gradient[i];
+            if (compute_dynamic_scores(model, workspace->identity_rhs, context, workspace, workspace->trial_scores) != BOLR_OK) return BOLR_NUMERICAL_FAILURE;
+            if (observation->curvature_hvp(observation->context, (bolr_const_vector_view){workspace->score_vector, n, 1}, (bolr_const_vector_view){workspace->trial_scores, n, 1}, (bolr_vector_view){workspace->score_hvp, n, 1}, NULL) != BOLR_OK) return BOLR_NUMERICAL_FAILURE;
+            if (bolr_model_transpose(model, (bolr_const_vector_view){workspace->score_hvp, n, 1}, context, (bolr_vector_view){workspace->parameter_curvature, dim, 1}, workspace->score_workspace) != BOLR_OK) return BOLR_NUMERICAL_FAILURE;
+            for (i = 0; i < dim; ++i) out_hessian[i * dim + j] = workspace->parameter_hvp[i] + workspace->parameter_curvature[i];
         }
         for (i = 0; i < dim; ++i) {
             for (j = i + 1; j < dim; ++j) {
@@ -194,7 +200,7 @@ bolr_status bolr_laplace_update(
     bolr_laplace_diagnostics *diagnostics
 ) {
     bolr_index dim, iter, i, j;
-    bolr_real objective, trial_objective, damping, theta_norm, grad_norm, step_norm, logdet;
+    bolr_real objective, trial_objective, damping, theta_norm, grad_norm, step_norm = 0.0, logdet;
     bolr_real *prior_chol;
     bolr_real *theta;
     bolr_real *gradient;
@@ -207,11 +213,11 @@ bolr_status bolr_laplace_update(
     status = bolr_newton_config_validate(config); if (status != BOLR_OK) return status;
     if ((workspace->state_dimension != predictive->dimension) || (workspace->candidate_count != bolr_model_score_count(model))) return BOLR_INVALID_SHAPE;
     dim = predictive->dimension;
-    theta = workspace->trial_state;
+    theta = workspace->current_state;
     gradient = workspace->parameter_gradient;
     hessian = workspace->dense_hessian;
     covariance = workspace->posterior_covariance;
-    prior_chol = workspace->damped_hessian;
+    prior_chol = workspace->prior_cholesky;
     memcpy(theta, predictive->mean, (size_t) dim * sizeof(bolr_real));
     memcpy(prior_chol, predictive->covariance, (size_t) (dim * dim) * sizeof(bolr_real));
     if (bolr_cholesky_factor((bolr_matrix_view){prior_chol, dim, dim, dim, 1}, config->cholesky_initial_jitter, config->cholesky_jitter_multiplier, config->maximum_cholesky_attempts, &chol_diag) != BOLR_OK) return BOLR_NOT_POSITIVE_DEFINITE;
