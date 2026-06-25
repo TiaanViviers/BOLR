@@ -48,7 +48,19 @@ SRC_FILES := \
   $(SRC_DIR)/score_graph.c \
   $(SRC_DIR)/score_composite.c \
   $(SRC_DIR)/observation_candidate_a.c \
+  $(SRC_DIR)/observation_candidate_b_exact.c \
+  $(SRC_DIR)/ordered_partition.c \
   $(SRC_DIR)/penalty.c \
+  $(SRC_DIR)/target_candidate_a.c \
+  $(SRC_DIR)/standardizer.c \
+  $(SRC_DIR)/surprise.c \
+  $(SRC_DIR)/bocpd.c \
+  $(SRC_DIR)/attribution.c \
+  $(SRC_DIR)/reset.c \
+  $(SRC_DIR)/adaptation.c \
+  $(SRC_DIR)/prediction.c \
+  $(SRC_DIR)/region.c \
+  $(SRC_DIR)/decision.c \
   $(SRC_DIR)/dynamics.c \
   $(SRC_DIR)/workspace.c \
   $(SRC_DIR)/checkpoint_schema.c \
@@ -70,6 +82,25 @@ TEST_SRC := \
   $(TEST_DIR)/test_state_layout.c \
   $(TEST_DIR)/test_score.c \
   $(TEST_DIR)/test_candidate_a.c \
+  $(TEST_DIR)/test_candidate_a_target.c \
+  $(TEST_DIR)/test_ordered_partition.c \
+  $(TEST_DIR)/test_candidate_b_exact.c \
+  $(TEST_DIR)/test_candidate_b_sampled.c \
+  $(TEST_DIR)/test_candidate_b_laplace.c \
+  $(TEST_DIR)/test_standardizer.c \
+  $(TEST_DIR)/test_bocpd.c \
+  $(TEST_DIR)/test_attribution.c \
+  $(TEST_DIR)/test_partial_reset.c \
+  $(TEST_DIR)/test_adaptive_policy.c \
+  $(TEST_DIR)/test_adaptive_checkpoint.c \
+  $(TEST_DIR)/test_score_uncertainty.c \
+  $(TEST_DIR)/test_pairwise_probability.c \
+  $(TEST_DIR)/test_decision_policy.c \
+  $(TEST_DIR)/test_consensus_region.c \
+  $(TEST_DIR)/test_connected_components.c \
+  $(TEST_DIR)/test_region_summary.c \
+  $(TEST_DIR)/test_graph_medoid.c \
+  $(TEST_DIR)/test_decision_calibration.c \
   $(TEST_DIR)/test_penalty.c \
   $(TEST_DIR)/test_dynamics.c \
   $(TEST_DIR)/test_golden.c \

@@ -115,6 +115,7 @@ bolr_status bolr_model_forward(const bolr_model *model, bolr_const_vector_view s
     status = bolr_workspace_score_buffer(workspace, model->score_count, &scratch); if (status != BOLR_OK) return status;
     for (i = 0; i < model->block_count; ++i) {
         bolr_const_vector_view slice = {state.data + model->blocks[i].spec.start * state.stride, model->blocks[i].spec.stop - model->blocks[i].spec.start, state.stride};
+        for (j = 0; j < model->score_count; ++j) scratch.data[j] = 0.0;
         if (model->blocks[i].kind == BLOCK_DENSE) status = bolr_dense_operator_forward(model->blocks[i].dense, slice, scratch, workspace);
         else if (model->blocks[i].kind == BLOCK_CONTEXT) status = bolr_context_operator_forward(model->blocks[i].context, slice, context, scratch, workspace);
         else if (model->blocks[i].kind == BLOCK_GRAPH) status = bolr_graph_operator_forward(model->blocks[i].graph, slice, scratch, workspace);
