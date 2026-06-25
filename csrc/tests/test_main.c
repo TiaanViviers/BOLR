@@ -34,6 +34,8 @@ int main(void) {
     if (test_golden() != 0) { fprintf(stderr, "test_golden failed\n"); failures += 1; }
     if (test_gaussian_state() != 0) { fprintf(stderr, "test_gaussian_state failed\n"); failures += 1; }
     if (test_gaussian_prediction() != 0) { fprintf(stderr, "test_gaussian_prediction failed\n"); failures += 1; }
+    if (test_rng() != 0) { fprintf(stderr, "test_rng failed\n"); failures += 1; }
+    if (test_sampling() != 0) { fprintf(stderr, "test_sampling failed\n"); failures += 1; }
     if (test_posterior_objective() != 0) { fprintf(stderr, "test_posterior_objective failed\n"); failures += 1; }
     if (test_newton() != 0) { fprintf(stderr, "test_newton failed\n"); failures += 1; }
     if (test_laplace() != 0) { fprintf(stderr, "test_laplace failed\n"); failures += 1; }

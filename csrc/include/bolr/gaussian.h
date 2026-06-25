@@ -9,6 +9,7 @@
 #include "bolr/workspace.h"
 
 typedef struct bolr_gaussian_state bolr_gaussian_state;
+typedef struct bolr_rng bolr_rng;
 
 typedef enum {
     BOLR_TRANSITION_ADDITIVE_Q = 1,
@@ -29,6 +30,15 @@ typedef struct {
     bolr_real minimum_cholesky_diagonal;
     bolr_real jitter_used;
 } bolr_prediction_diagnostics;
+
+typedef struct {
+    bolr_index sample_count;
+    bolr_index state_dimension;
+    int antithetic;
+    uint64_t normal_draw_count;
+    bolr_real cholesky_jitter;
+    bolr_real minimum_cholesky_diagonal;
+} bolr_sampling_diagnostics;
 
 bolr_status bolr_gaussian_state_create(
     bolr_const_vector_view mean,
@@ -58,5 +68,14 @@ bolr_status bolr_gaussian_predict(
 bolr_status bolr_gaussian_kl(const bolr_gaussian_state *posterior, const bolr_gaussian_state *predictive, bolr_real *out_kl);
 bolr_status bolr_gaussian_state_export(const bolr_gaussian_state *state, const bolr_allocator *allocator, bolr_checkpoint_state **out_checkpoint);
 bolr_status bolr_gaussian_state_import(const bolr_checkpoint_state *checkpoint, const bolr_allocator *allocator, bolr_gaussian_state **out_state);
+bolr_status bolr_gaussian_state_sample(
+    const bolr_gaussian_state *state,
+    bolr_rng *rng,
+    bolr_index sample_count,
+    int antithetic,
+    bolr_matrix_view output_samples,
+    bolr_sampling_diagnostics *diagnostics,
+    bolr_workspace *workspace
+);
 
 #endif

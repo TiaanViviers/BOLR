@@ -6,6 +6,7 @@
 #include "bolr/prediction.h"
 #include "bolr/region.h"
 #include "bolr/decision.h"
+#include "bolr/rng.h"
 #include "bolr/score.h"
 #include "bolr/workspace.h"
 
@@ -30,6 +31,29 @@ struct bolr_checkpoint_state {
     uint64_t state_layout_hash;
     uint64_t model_schema_hash;
     uint32_t gaussian_state_schema_version;
+};
+
+struct bolr_rng {
+    const bolr_allocator *allocator;
+    uint64_t state;
+    uint64_t increment;
+    bolr_rng_seed seed;
+    uint64_t u32_draw_count;
+    uint64_t uniform_draw_count;
+    uint64_t normal_draw_count;
+    uint32_t schema_version;
+    uint32_t algorithm_family;
+    uint32_t algorithm_version;
+    uint32_t pcg_variant;
+    uint32_t ziggurat_layers;
+    uint64_t table_hash;
+};
+
+struct bolr_rng_checkpoint {
+    const bolr_allocator *allocator;
+    uint64_t state;
+    uint64_t increment;
+    bolr_rng_metadata metadata;
 };
 
 struct bolr_inference_workspace {

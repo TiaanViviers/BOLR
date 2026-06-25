@@ -3,6 +3,8 @@
 
 #include "bolr/allocator.h"
 #include "bolr/array.h"
+#include "bolr/gaussian.h"
+#include "bolr/rng.h"
 #include "bolr/state_layout.h"
 #include "bolr/workspace.h"
 
@@ -10,6 +12,12 @@ typedef struct bolr_dense_operator bolr_dense_operator;
 typedef struct bolr_context_operator bolr_context_operator;
 typedef struct bolr_graph_operator bolr_graph_operator;
 typedef struct bolr_model bolr_model;
+
+typedef struct {
+    bolr_index sample_count;
+    bolr_index candidate_count;
+    bolr_index state_dimension;
+} bolr_score_sampling_diagnostics;
 
 bolr_status bolr_dense_operator_create_copy(bolr_const_matrix_view design, const bolr_allocator *allocator, bolr_dense_operator **out_operator);
 void bolr_dense_operator_destroy(bolr_dense_operator *op);
@@ -43,5 +51,24 @@ bolr_index bolr_model_state_dim(const bolr_model *model);
 uint64_t bolr_model_schema_hash(const bolr_model *model);
 uint64_t bolr_model_state_layout_hash(const bolr_model *model);
 bolr_status bolr_model_copy_static_scores(const bolr_model *model, bolr_vector_view output);
+bolr_status bolr_composite_score_samples(
+    const bolr_model *model,
+    bolr_const_vector_view context,
+    bolr_const_matrix_view state_samples,
+    bolr_matrix_view output_scores,
+    bolr_workspace *workspace,
+    bolr_score_sampling_diagnostics *diagnostics
+);
+bolr_status bolr_posterior_score_sample(
+    const bolr_gaussian_state *state,
+    const bolr_model *model,
+    bolr_const_vector_view context,
+    bolr_rng *rng,
+    bolr_index sample_count,
+    int antithetic,
+    bolr_matrix_view output_scores,
+    bolr_sampling_diagnostics *diagnostics,
+    bolr_workspace *workspace
+);
 
 #endif

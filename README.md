@@ -18,16 +18,26 @@ Bayesian Online Listwise Ranking for applications to quantative trading
 - Phase L3A: native Candidate A target construction, ordered-partition construction, exact and deterministic-sampled cross-group Candidate B observations, generic Laplace integration, Python/C derivative and Laplace equivalence, bounded sequential Candidate B validation, and compiler/sanitizer coverage are implemented; native RNG, adaptive transitions, and full historical Candidate B replay remain deferred
 - Phase L3B: ABI `1.3.0` native adaptive-transition support is implemented for the reference path, including C11 BOCPD state evolution, causal EW surprise standardisation, blockwise innovation attribution, adaptive additive process-noise policies, pending reset scheduling, adaptive-state checkpoint round-trips, Python ctypes wrappers, and bounded Candidate A/Candidate B sequential equivalence tests; full replay orchestration, native discount-family prediction semantics, RNG, and Fast-BOCPD integration remain deferred
 - Phase L4A: ABI `1.4.0` native deterministic posterior-decision support is implemented, including posterior score summaries, selected score covariance, analytic pairwise win probabilities, canonical-grid consensus regions, connected-component summaries, weighted graph medoids, deterministic candidate and region decision policies, ctypes wrappers, and Python/C equivalence coverage; RNG, posterior sampling, Monte Carlo ranking probabilities, Thompson policies, and replay checkpoint composition remain deferred
+- Phase L4B1: ABI `1.5.0` native stochastic posterior-sampling support is implemented, including PCG32 stream-selectable RNG state, immutable 128-layer Ziggurat normals, exact RNG checkpoint export/import, Gaussian posterior state sampling, antithetic sampling, composite score sampling, ctypes wrappers, deterministic integer/checkpoint regression tests, and bounded sampling-moment validation; posterior-rank Monte Carlo summaries, Thompson policies, and replay checkpoint composition remain deferred
 
 ## C Backend ABI
 
-- Current native ABI: `1.4.0`
-- Release gate validated for L4A:
-  - `make -C csrc BUILD_DIR=build/l4a-debug-gcc test CC=gcc`
-  - `make -C csrc BUILD_DIR=build/l4a-debug-clang test CC=clang`
-  - `make -C csrc BUILD_DIR=build/l4a-sanitize-gcc sanitize CC=gcc`
+- Current native ABI: `1.5.0`
+- Release gate validated for L4B1:
+  - `make -C csrc BUILD_DIR=build/l4b1-debug-gcc test CC=gcc`
+  - `make -C csrc BUILD_DIR=build/l4b1-debug-clang test CC=clang`
+  - `make -C csrc BUILD_DIR=build/l4b1-sanitize-gcc sanitize CC=gcc`
+  - `make -C csrc BUILD_DIR=build/l4b1-release-gcc release CC=gcc`
   - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q tests/c_backend`
   - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q`
+
+## L4B1 Sampling Notes
+
+- Native RNG: PCG32 XSH-RR with explicit `(seed, stream)` selection, where `inc = (stream << 1) | 1`.
+- Native normal sampler: immutable 128-layer Marsaglia-Tsang Ziggurat with committed lookup tables and no mutable global state.
+- Native checkpoint scope: exact continuation of the PCG/Ziggurat stream on supported Linux GCC/Clang builds through `bolr_rng_checkpoint`.
+- Gaussian sampling: one Cholesky factorization per call, optional antithetic ordering matched to the Python reference convention, and caller-owned row-major output buffers.
+- Remaining reproducibility caveat: the integer stream is exact by construction; normal draws rely on `libm` for `exp` and `log`, so cross-platform bitwise identity is only claimed for the validated Linux toolchains above.
 
 ## L4A Integration Notes
 

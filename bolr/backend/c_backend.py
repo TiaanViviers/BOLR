@@ -276,6 +276,45 @@ class PredictionDiagnosticsStruct(ctypes.Structure):
     ]
 
 
+class RNGMetadataStruct(ctypes.Structure):
+    _fields_ = [
+        ("schema_version", ctypes.c_uint32),
+        ("algorithm_family", ctypes.c_uint32),
+        ("algorithm_version", ctypes.c_uint32),
+        ("pcg_variant", ctypes.c_uint32),
+        ("ziggurat_layers", ctypes.c_uint32),
+        ("table_hash", ctypes.c_uint64),
+        ("seed", ctypes.c_uint64),
+        ("stream", ctypes.c_uint64),
+        ("u32_draw_count", ctypes.c_uint64),
+        ("uniform_draw_count", ctypes.c_uint64),
+        ("normal_draw_count", ctypes.c_uint64),
+    ]
+
+
+class SamplingDiagnosticsStruct(ctypes.Structure):
+    _fields_ = [
+        ("sample_count", ctypes.c_int64),
+        ("state_dimension", ctypes.c_int64),
+        ("antithetic", ctypes.c_int),
+        ("normal_draw_count", ctypes.c_uint64),
+        ("cholesky_jitter", ctypes.c_double),
+        ("minimum_cholesky_diagonal", ctypes.c_double),
+    ]
+
+
+class ScoreSamplingDiagnosticsStruct(ctypes.Structure):
+    _fields_ = [
+        ("sample_count", ctypes.c_int64),
+        ("candidate_count", ctypes.c_int64),
+        ("state_dimension", ctypes.c_int64),
+    ]
+
+
+class RNGSeedStruct(ctypes.Structure):
+    _fields_ = [("seed", ctypes.c_uint64), ("stream", ctypes.c_uint64)]
+
+
 class PosteriorPredictionDiagnosticsStruct(ctypes.Structure):
     _fields_ = [
         ("score_mean_norm", ctypes.c_double),
@@ -585,6 +624,73 @@ class PredictionDiagnostics:
             predictive_covariance_trace=float(struct.predictive_covariance_trace),
             minimum_cholesky_diagonal=float(struct.minimum_cholesky_diagonal),
             jitter_used=float(struct.jitter_used),
+        )
+
+
+@dataclass(frozen=True)
+class CRNGMetadata:
+    schema_version: int
+    algorithm_family: int
+    algorithm_version: int
+    pcg_variant: int
+    ziggurat_layers: int
+    table_hash: int
+    seed: int
+    stream: int
+    u32_draw_count: int
+    uniform_draw_count: int
+    normal_draw_count: int
+
+    @classmethod
+    def from_c(cls, struct: RNGMetadataStruct) -> "CRNGMetadata":
+        return cls(
+            schema_version=int(struct.schema_version),
+            algorithm_family=int(struct.algorithm_family),
+            algorithm_version=int(struct.algorithm_version),
+            pcg_variant=int(struct.pcg_variant),
+            ziggurat_layers=int(struct.ziggurat_layers),
+            table_hash=int(struct.table_hash),
+            seed=int(struct.seed),
+            stream=int(struct.stream),
+            u32_draw_count=int(struct.u32_draw_count),
+            uniform_draw_count=int(struct.uniform_draw_count),
+            normal_draw_count=int(struct.normal_draw_count),
+        )
+
+
+@dataclass(frozen=True)
+class CSamplingDiagnostics:
+    sample_count: int
+    state_dimension: int
+    antithetic: bool
+    normal_draw_count: int
+    cholesky_jitter: float
+    minimum_cholesky_diagonal: float
+
+    @classmethod
+    def from_c(cls, struct: SamplingDiagnosticsStruct) -> "CSamplingDiagnostics":
+        return cls(
+            sample_count=int(struct.sample_count),
+            state_dimension=int(struct.state_dimension),
+            antithetic=bool(struct.antithetic),
+            normal_draw_count=int(struct.normal_draw_count),
+            cholesky_jitter=float(struct.cholesky_jitter),
+            minimum_cholesky_diagonal=float(struct.minimum_cholesky_diagonal),
+        )
+
+
+@dataclass(frozen=True)
+class CScoreSamplingDiagnostics:
+    sample_count: int
+    candidate_count: int
+    state_dimension: int
+
+    @classmethod
+    def from_c(cls, struct: ScoreSamplingDiagnosticsStruct) -> "CScoreSamplingDiagnostics":
+        return cls(
+            sample_count=int(struct.sample_count),
+            candidate_count=int(struct.candidate_count),
+            state_dimension=int(struct.state_dimension),
         )
 
 
@@ -1082,6 +1188,43 @@ class CLibrary:
         self.lib.bolr_gaussian_state_import.restype = ctypes.c_int32
         self.lib.bolr_gaussian_predict.argtypes = [ctypes.c_void_p, ctypes.POINTER(TransitionConfig), ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(PredictionDiagnosticsStruct)]
         self.lib.bolr_gaussian_predict.restype = ctypes.c_int32
+        self.lib.bolr_gaussian_state_sample.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64, ctypes.c_int, MatrixView, ctypes.POINTER(SamplingDiagnosticsStruct), ctypes.c_void_p]
+        self.lib.bolr_gaussian_state_sample.restype = ctypes.c_int32
+        self.lib.bolr_composite_score_samples.argtypes = [ctypes.c_void_p, ConstVectorView, ConstMatrixView, MatrixView, ctypes.c_void_p, ctypes.POINTER(ScoreSamplingDiagnosticsStruct)]
+        self.lib.bolr_composite_score_samples.restype = ctypes.c_int32
+        self.lib.bolr_posterior_score_sample.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ConstVectorView, ctypes.c_void_p, ctypes.c_int64, ctypes.c_int, MatrixView, ctypes.POINTER(SamplingDiagnosticsStruct), ctypes.c_void_p]
+        self.lib.bolr_posterior_score_sample.restype = ctypes.c_int32
+
+        self.lib.bolr_rng_create.argtypes = [RNGSeedStruct, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_rng_create.restype = ctypes.c_int32
+        self.lib.bolr_rng_destroy.argtypes = [ctypes.c_void_p]
+        self.lib.bolr_rng_clone.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_rng_clone.restype = ctypes.c_int32
+        self.lib.bolr_rng_u32.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+        self.lib.bolr_rng_u32.restype = ctypes.c_int32
+        self.lib.bolr_rng_uniform_open01.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double)]
+        self.lib.bolr_rng_uniform_open01.restype = ctypes.c_int32
+        self.lib.bolr_rng_standard_normal.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double)]
+        self.lib.bolr_rng_standard_normal.restype = ctypes.c_int32
+        self.lib.bolr_rng_fill_uniform_open01.argtypes = [ctypes.c_void_p, VectorView]
+        self.lib.bolr_rng_fill_uniform_open01.restype = ctypes.c_int32
+        self.lib.bolr_rng_fill_standard_normal.argtypes = [ctypes.c_void_p, VectorView]
+        self.lib.bolr_rng_fill_standard_normal.restype = ctypes.c_int32
+        self.lib.bolr_rng_metadata_copy.argtypes = [ctypes.c_void_p, ctypes.POINTER(RNGMetadataStruct)]
+        self.lib.bolr_rng_metadata_copy.restype = ctypes.c_int32
+        self.lib.bolr_rng_export.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_rng_export.restype = ctypes.c_int32
+        self.lib.bolr_rng_import.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_rng_import.restype = ctypes.c_int32
+        self.lib.bolr_rng_checkpoint_destroy.argtypes = [ctypes.c_void_p]
+        self.lib.bolr_rng_checkpoint_metadata_copy.argtypes = [ctypes.c_void_p, ctypes.POINTER(RNGMetadataStruct)]
+        self.lib.bolr_rng_checkpoint_metadata_copy.restype = ctypes.c_int32
+        self.lib.bolr_rng_checkpoint_encoded_size.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_size_t)]
+        self.lib.bolr_rng_checkpoint_encoded_size.restype = ctypes.c_int32
+        self.lib.bolr_rng_checkpoint_encode.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t)]
+        self.lib.bolr_rng_checkpoint_encode.restype = ctypes.c_int32
+        self.lib.bolr_rng_checkpoint_decode.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_rng_checkpoint_decode.restype = ctypes.c_int32
 
         self.lib.bolr_checkpoint_state_destroy.argtypes = [ctypes.c_void_p]
         self.lib.bolr_checkpoint_encoded_size.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_size_t)]
@@ -1221,8 +1364,8 @@ class CLibrary:
         self.lib.bolr_region_coverage.argtypes = [ctypes.POINTER(ctypes.c_int64), ctypes.c_int64, ConstVectorView, ctypes.c_double, ctypes.POINTER(ctypes.c_int32)]
         self.lib.bolr_region_coverage.restype = ctypes.c_int32
 
-        if self.lib.bolr_abi_version_minor() < 4:
-            raise CBackendError("BOLR C backend is missing Phase L4A symbols.")
+        if self.lib.bolr_abi_version_minor() < 5:
+            raise CBackendError("BOLR C backend is missing Phase L4B1 symbols.")
 
     @staticmethod
     def const_vector(array: np.ndarray) -> ConstVectorView:
@@ -1363,6 +1506,96 @@ class CCheckpointState(CHandle):
         return cls(handle, library=lib)
 
 
+class CRNGCheckpoint(CHandle):
+    def __init__(self, handle: ctypes.c_void_p, *, library: CLibrary | None = None) -> None:
+        self.library = CLibrary() if library is None else library
+        super().__init__(handle, self.library.lib.bolr_rng_checkpoint_destroy)
+
+    def metadata(self) -> CRNGMetadata:
+        metadata = RNGMetadataStruct()
+        status_ok(self.library.lib, self.library.lib.bolr_rng_checkpoint_metadata_copy(self._require_open(), ctypes.byref(metadata)), operation="bolr_rng_checkpoint_metadata_copy")
+        return CRNGMetadata.from_c(metadata)
+
+    def to_bytes(self) -> bytes:
+        size = ctypes.c_size_t()
+        status_ok(self.library.lib, self.library.lib.bolr_rng_checkpoint_encoded_size(self._require_open(), ctypes.byref(size)), operation="bolr_rng_checkpoint_encoded_size")
+        buffer = (ctypes.c_ubyte * size.value)()
+        written = ctypes.c_size_t()
+        status_ok(self.library.lib, self.library.lib.bolr_rng_checkpoint_encode(self._require_open(), ctypes.byref(buffer), size.value, ctypes.byref(written)), operation="bolr_rng_checkpoint_encode")
+        return bytes(buffer[: written.value])
+
+    @classmethod
+    def from_bytes(cls, payload: bytes, *, library: CLibrary | None = None) -> "CRNGCheckpoint":
+        lib = CLibrary() if library is None else library
+        handle = ctypes.c_void_p()
+        raw = (ctypes.c_ubyte * len(payload)).from_buffer_copy(payload)
+        status_ok(lib.lib, lib.lib.bolr_rng_checkpoint_decode(ctypes.byref(raw), len(payload), None, ctypes.byref(handle)), operation="bolr_rng_checkpoint_decode")
+        return cls(handle, library=lib)
+
+
+class CRNG(CHandle):
+    def __init__(self, seed: int | None = None, stream: int = 0, *, handle: ctypes.c_void_p | None = None, library: CLibrary | None = None) -> None:
+        self.library = CLibrary() if library is None else library
+        if handle is None:
+            if seed is None:
+                raise ValueError("Seed is required when creating a native RNG.")
+            created = ctypes.c_void_p()
+            status_ok(
+                self.library.lib,
+                self.library.lib.bolr_rng_create(RNGSeedStruct(int(seed), int(stream)), None, ctypes.byref(created)),
+                operation="bolr_rng_create",
+            )
+            handle = created
+        super().__init__(handle, self.library.lib.bolr_rng_destroy)
+
+    def metadata(self) -> CRNGMetadata:
+        metadata = RNGMetadataStruct()
+        status_ok(self.library.lib, self.library.lib.bolr_rng_metadata_copy(self._require_open(), ctypes.byref(metadata)), operation="bolr_rng_metadata_copy")
+        return CRNGMetadata.from_c(metadata)
+
+    def u32(self) -> int:
+        value = ctypes.c_uint32()
+        status_ok(self.library.lib, self.library.lib.bolr_rng_u32(self._require_open(), ctypes.byref(value)), operation="bolr_rng_u32")
+        return int(value.value)
+
+    def uniform(self) -> float:
+        value = ctypes.c_double()
+        status_ok(self.library.lib, self.library.lib.bolr_rng_uniform_open01(self._require_open(), ctypes.byref(value)), operation="bolr_rng_uniform_open01")
+        return float(value.value)
+
+    def normal(self) -> float:
+        value = ctypes.c_double()
+        status_ok(self.library.lib, self.library.lib.bolr_rng_standard_normal(self._require_open(), ctypes.byref(value)), operation="bolr_rng_standard_normal")
+        return float(value.value)
+
+    def fill_uniform(self, count: int) -> np.ndarray:
+        output = np.empty(int(count), dtype=np.float64)
+        status_ok(self.library.lib, self.library.lib.bolr_rng_fill_uniform_open01(self._require_open(), self.library.vector(output)), operation="bolr_rng_fill_uniform_open01")
+        return output
+
+    def fill_standard_normal(self, count: int) -> np.ndarray:
+        output = np.empty(int(count), dtype=np.float64)
+        status_ok(self.library.lib, self.library.lib.bolr_rng_fill_standard_normal(self._require_open(), self.library.vector(output)), operation="bolr_rng_fill_standard_normal")
+        return output
+
+    def clone(self) -> "CRNG":
+        handle = ctypes.c_void_p()
+        status_ok(self.library.lib, self.library.lib.bolr_rng_clone(self._require_open(), None, ctypes.byref(handle)), operation="bolr_rng_clone")
+        return CRNG(handle=handle, library=self.library)
+
+    def export_checkpoint(self) -> CRNGCheckpoint:
+        handle = ctypes.c_void_p()
+        status_ok(self.library.lib, self.library.lib.bolr_rng_export(self._require_open(), None, ctypes.byref(handle)), operation="bolr_rng_export")
+        return CRNGCheckpoint(handle, library=self.library)
+
+    @classmethod
+    def import_checkpoint(cls, checkpoint: CRNGCheckpoint, *, library: CLibrary | None = None) -> "CRNG":
+        lib = CLibrary() if library is None else library
+        handle = ctypes.c_void_p()
+        status_ok(lib.lib, lib.lib.bolr_rng_import(checkpoint._require_open(), None, ctypes.byref(handle)), operation="bolr_rng_import")
+        return cls(handle=handle, library=lib)
+
+
 class CGaussianState(CHandle):
     def __init__(
         self,
@@ -1424,7 +1657,7 @@ class CGaussianState(CHandle):
         status_ok(self.library.lib, self.library.lib.bolr_gaussian_state_copy_covariance(self._require_open(), self.library.matrix(output)), operation="bolr_gaussian_state_copy_covariance")
         return output
 
-    def to_posterior(self, *, state_layout: dict[str, Any] | None = None, timestamp: str | None = None, version: str = "c_backend_l2") -> GaussianPosterior:
+    def to_posterior(self, *, state_layout: dict[str, Any] | None = None, timestamp: str | None = None, version: str = "c_backend_l4b1") -> GaussianPosterior:
         return GaussianPosterior(mean=self.mean(), covariance=self.covariance(), state_layout=state_layout, timestamp=timestamp, version=version)
 
     def export_checkpoint(self) -> CCheckpointState:
@@ -2311,6 +2544,113 @@ class CBackend(NumericalBackend):
 
     def decision_policy(self, config: Any) -> CDecisionPolicy:
         return CDecisionPolicy(config, library=self.library)
+
+    def rng(self, seed: int, stream: int = 0) -> CRNG:
+        return CRNG(seed=seed, stream=stream, library=self.library)
+
+    def sample_gaussian_state(
+        self,
+        state: CGaussianState,
+        rng: CRNG,
+        sample_count: int,
+        *,
+        antithetic: bool = False,
+        workspace: CWorkspace | None = None,
+    ) -> tuple[np.ndarray, CSamplingDiagnostics]:
+        output = np.empty((int(sample_count), state.dimension), dtype=np.float64)
+        diagnostics = SamplingDiagnosticsStruct()
+        owned_workspace = workspace
+        if owned_workspace is None:
+            owned_workspace = CWorkspace(0, state.dimension, 0, library=self.library)
+        try:
+            status_ok(
+                self.library.lib,
+                self.library.lib.bolr_gaussian_state_sample(
+                    state._require_open(),
+                    rng._require_open(),
+                    int(sample_count),
+                    int(bool(antithetic)),
+                    self.library.matrix(output),
+                    ctypes.byref(diagnostics),
+                    owned_workspace._require_open(),
+                ),
+                operation="bolr_gaussian_state_sample",
+            )
+        finally:
+            if workspace is None:
+                owned_workspace.close()
+        return output, CSamplingDiagnostics.from_c(diagnostics)
+
+    def score_samples_from_state_samples(
+        self,
+        model: CModelArtifacts,
+        state_samples: np.ndarray,
+        context: CScoreContext | None = None,
+        *,
+        workspace: CWorkspace | None = None,
+    ) -> tuple[np.ndarray, CScoreSamplingDiagnostics]:
+        states = _as_f64_matrix(state_samples)
+        context = CScoreContext() if context is None else context
+        output = np.empty((states.shape[0], model.candidate_count), dtype=np.float64)
+        diagnostics = ScoreSamplingDiagnosticsStruct()
+        owned_workspace = workspace
+        if owned_workspace is None:
+            owned_workspace = CWorkspace(model.candidate_count, model.state_dimension, max(0, context.context_vector.size), library=self.library)
+        try:
+            status_ok(
+                self.library.lib,
+                self.library.lib.bolr_composite_score_samples(
+                    model._require_open(),
+                    context.const_view(self.library),
+                    self.library.const_matrix(states),
+                    self.library.matrix(output),
+                    owned_workspace._require_open(),
+                    ctypes.byref(diagnostics),
+                ),
+                operation="bolr_composite_score_samples",
+            )
+        finally:
+            if workspace is None:
+                owned_workspace.close()
+        return output, CScoreSamplingDiagnostics.from_c(diagnostics)
+
+    def sample_posterior_scores(
+        self,
+        state: CGaussianState,
+        model: CModelArtifacts,
+        context: CScoreContext | None,
+        rng: CRNG,
+        sample_count: int,
+        *,
+        antithetic: bool = False,
+        workspace: CWorkspace | None = None,
+    ) -> tuple[np.ndarray, CSamplingDiagnostics]:
+        context = CScoreContext() if context is None else context
+        output = np.empty((int(sample_count), model.candidate_count), dtype=np.float64)
+        diagnostics = SamplingDiagnosticsStruct()
+        owned_workspace = workspace
+        if owned_workspace is None:
+            owned_workspace = CWorkspace(model.candidate_count, model.state_dimension, max(0, context.context_vector.size), library=self.library)
+        try:
+            status_ok(
+                self.library.lib,
+                self.library.lib.bolr_posterior_score_sample(
+                    state._require_open(),
+                    model._require_open(),
+                    context.const_view(self.library),
+                    rng._require_open(),
+                    int(sample_count),
+                    int(bool(antithetic)),
+                    self.library.matrix(output),
+                    ctypes.byref(diagnostics),
+                    owned_workspace._require_open(),
+                ),
+                operation="bolr_posterior_score_sample",
+            )
+        finally:
+            if workspace is None:
+                owned_workspace.close()
+        return output, CSamplingDiagnostics.from_c(diagnostics)
 
     def probability_entropy(self, probabilities: np.ndarray) -> tuple[float, float, float]:
         probs = _as_f64_vector(probabilities)

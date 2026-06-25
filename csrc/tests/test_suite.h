@@ -31,6 +31,8 @@ int test_dynamics(void);
 int test_golden(void);
 int test_gaussian_state(void);
 int test_gaussian_prediction(void);
+int test_rng(void);
+int test_sampling(void);
 int test_posterior_objective(void);
 int test_newton(void);
 int test_laplace(void);

@@ -200,3 +200,102 @@ bolr_status bolr_gaussian_state_import(const bolr_checkpoint_state *checkpoint, 
     *out_state = state;
     return BOLR_OK;
 }
+
+bolr_status bolr_gaussian_state_sample(
+    const bolr_gaussian_state *state,
+    bolr_rng *rng,
+    bolr_index sample_count,
+    int antithetic,
+    bolr_matrix_view output_samples,
+    bolr_sampling_diagnostics *diagnostics,
+    bolr_workspace *workspace
+) {
+    const bolr_allocator *active;
+    bolr_workspace *local_workspace = NULL;
+    bolr_vector_view z_view;
+    bolr_real *factor = NULL;
+    bolr_cholesky_diagnostics chol;
+    bolr_status status;
+    uint64_t start_normals;
+    bolr_index half_count;
+    bolr_index row;
+    bolr_index dim;
+    if ((state == NULL) || (rng == NULL)) return BOLR_INVALID_ARGUMENT;
+    if (sample_count < 0) return BOLR_INVALID_SHAPE;
+    if (bolr_mutable_matrix_view_validate(output_samples) != BOLR_OK) return BOLR_INVALID_ARGUMENT;
+    dim = state->dimension;
+    if ((output_samples.rows != sample_count) || (output_samples.cols != dim)) return BOLR_INVALID_SHAPE;
+    if (diagnostics != NULL) memset(diagnostics, 0, sizeof(*diagnostics));
+    if (sample_count == 0) {
+        if (diagnostics != NULL) {
+            diagnostics->sample_count = 0;
+            diagnostics->state_dimension = dim;
+            diagnostics->antithetic = antithetic ? 1 : 0;
+        }
+        return BOLR_OK;
+    }
+    active = state->allocator;
+    if (workspace == NULL) {
+        bolr_workspace_config config = {0, dim, 0};
+        status = bolr_workspace_create(&config, active, &local_workspace);
+        if (status != BOLR_OK) return status;
+        workspace = local_workspace;
+    }
+    status = bolr_workspace_state_buffer(workspace, dim, &z_view);
+    if (status != BOLR_OK) {
+        bolr_workspace_destroy(local_workspace);
+        return status;
+    }
+    factor = (bolr_real *) malloc((size_t) (dim * dim) * sizeof(bolr_real));
+    if (factor == NULL) {
+        bolr_workspace_destroy(local_workspace);
+        return BOLR_ALLOCATION_FAILED;
+    }
+    memcpy(factor, state->covariance, (size_t) (dim * dim) * sizeof(bolr_real));
+    status = bolr_cholesky_factor((bolr_matrix_view){factor, dim, dim, dim, 1}, 1e-9, 10.0, 6, &chol);
+    if (status != BOLR_OK) {
+        free(factor);
+        bolr_workspace_destroy(local_workspace);
+        return status;
+    }
+    start_normals = rng->normal_draw_count;
+    half_count = antithetic ? ((sample_count + 1) / 2) : sample_count;
+    for (row = 0; row < half_count; ++row) {
+        bolr_index i;
+        bolr_index j;
+        for (i = 0; i < dim; ++i) {
+            status = bolr_rng_standard_normal(rng, &z_view.data[i]);
+            if (status != BOLR_OK) {
+                free(factor);
+                bolr_workspace_destroy(local_workspace);
+                return status;
+            }
+        }
+        for (i = 0; i < dim; ++i) {
+            bolr_real value = state->mean[i];
+            for (j = 0; j <= i; ++j) value += factor[i * dim + j] * z_view.data[j];
+            output_samples.data[row * output_samples.row_stride + i * output_samples.col_stride] = value;
+        }
+    }
+    if (antithetic) {
+        for (row = half_count; row < sample_count; ++row) {
+            bolr_index i;
+            bolr_index mirror = row - half_count;
+            for (i = 0; i < dim; ++i) {
+                bolr_real positive = output_samples.data[mirror * output_samples.row_stride + i * output_samples.col_stride];
+                output_samples.data[row * output_samples.row_stride + i * output_samples.col_stride] = (2.0 * state->mean[i]) - positive;
+            }
+        }
+    }
+    if (diagnostics != NULL) {
+        diagnostics->sample_count = sample_count;
+        diagnostics->state_dimension = dim;
+        diagnostics->antithetic = antithetic ? 1 : 0;
+        diagnostics->normal_draw_count = rng->normal_draw_count - start_normals;
+        diagnostics->cholesky_jitter = chol.jitter_used;
+        diagnostics->minimum_cholesky_diagonal = chol.minimum_diagonal;
+    }
+    free(factor);
+    bolr_workspace_destroy(local_workspace);
+    return BOLR_OK;
+}
