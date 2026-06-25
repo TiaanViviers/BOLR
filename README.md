@@ -19,25 +19,39 @@ Bayesian Online Listwise Ranking for applications to quantative trading
 - Phase L3B: ABI `1.3.0` native adaptive-transition support is implemented for the reference path, including C11 BOCPD state evolution, causal EW surprise standardisation, blockwise innovation attribution, adaptive additive process-noise policies, pending reset scheduling, adaptive-state checkpoint round-trips, Python ctypes wrappers, and bounded Candidate A/Candidate B sequential equivalence tests; full replay orchestration, native discount-family prediction semantics, RNG, and Fast-BOCPD integration remain deferred
 - Phase L4A: ABI `1.4.0` native deterministic posterior-decision support is implemented, including posterior score summaries, selected score covariance, analytic pairwise win probabilities, canonical-grid consensus regions, connected-component summaries, weighted graph medoids, deterministic candidate and region decision policies, ctypes wrappers, and Python/C equivalence coverage; RNG, posterior sampling, Monte Carlo ranking probabilities, Thompson policies, and replay checkpoint composition remain deferred
 - Phase L4B1: ABI `1.5.0` native stochastic posterior-sampling support is implemented, including PCG32 stream-selectable RNG state, immutable 128-layer Ziggurat normals, exact RNG checkpoint export/import, Gaussian posterior state sampling, antithetic sampling, composite score sampling, ctypes wrappers, deterministic integer/checkpoint regression tests, and bounded sampling-moment validation; posterior-rank Monte Carlo summaries, Thompson policies, and replay checkpoint composition remain deferred
+- Phase L4B2: ABI `1.6.0` native Monte Carlo ranking support is implemented, including exact sampled-score rank accumulation, probability-best and probability-top-k summaries, expected rank, rank standard deviation, optional retained score samples, Thompson sample-zero selection, ctypes wrappers, GCC/Clang/sanitizer coverage, and Python/C retained-sample equivalence tests; streaming accumulation, replay state machines, and durable checkpoint files remain deferred
+- Phase L4B2.2: ABI `1.7.0` native bounded-memory replay support is implemented, including streaming Monte Carlo rank accumulation with optional sample-zero retention, exact reusable rank accumulators, a native causal replay state machine, in-memory ready/pending replay checkpoints, fixed and adaptive replay handles, Candidate A and Candidate B replay integration, transactional failure semantics, ctypes bindings, and native/Python checkpoint-resume equivalence coverage; durable binary checkpoint files and full native historical replay remain deferred
 
 ## C Backend ABI
 
-- Current native ABI: `1.5.0`
-- Release gate validated for L4B1:
-  - `make -C csrc BUILD_DIR=build/l4b1-debug-gcc test CC=gcc`
-  - `make -C csrc BUILD_DIR=build/l4b1-debug-clang test CC=clang`
-  - `make -C csrc BUILD_DIR=build/l4b1-sanitize-gcc sanitize CC=gcc`
-  - `make -C csrc BUILD_DIR=build/l4b1-release-gcc release CC=gcc`
+- Current native ABI: `1.7.0`
+- Release gate validated for L4B2:
+  - `make -C csrc BUILD_DIR=build/l4b2-debug-gcc test CC=gcc`
+  - `make -C csrc BUILD_DIR=build/l4b2-debug-clang clean test CC=clang`
+  - `make -C csrc BUILD_DIR=build/l4b2-sanitize-gcc sanitize CC=gcc`
+  - `make -C csrc BUILD_DIR=build/l4b2-release-gcc clean release CC=gcc`
+  - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q tests/c_backend`
+  - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q`
+- Release gate validated for L4B2.2:
+  - `make -C csrc BUILD_DIR=build/l4b22-debug-gcc test CC=gcc`
+  - `make -C csrc BUILD_DIR=build/l4b22-sanitize-gcc sanitize CC=gcc`
+  - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q tests/c_backend/test_c_posterior_decision.py tests/c_backend/test_c_replay.py`
   - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q tests/c_backend`
   - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q`
 
-## L4B1 Sampling Notes
+## L4B2 Ranking Notes
 
 - Native RNG: PCG32 XSH-RR with explicit `(seed, stream)` selection, where `inc = (stream << 1) | 1`.
 - Native normal sampler: immutable 128-layer Marsaglia-Tsang Ziggurat with committed lookup tables and no mutable global state.
 - Native checkpoint scope: exact continuation of the PCG/Ziggurat stream on supported Linux GCC/Clang builds through `bolr_rng_checkpoint`.
 - Gaussian sampling: one Cholesky factorization per call, optional antithetic ordering matched to the Python reference convention, and caller-owned row-major output buffers.
 - Remaining reproducibility caveat: the integer stream is exact by construction; normal draws rely on `libm` for `exp` and `log`, so cross-platform bitwise identity is only claimed for the validated Linux toolchains above.
+- Rank ordering semantics are frozen to the Python reference: stable descending score sort with original candidate index tie-breaks, ranks numbered `1..N`, and winner equal to rank-1 under that stable order.
+- Retained score samples are optional and diagnostic. The current `bolr_posterior_prediction_monte_carlo_rank()` path may retain all score samples for debugging and equivalence, but production replay will move to streaming accumulation by default.
+- Thompson selection is frozen to Monte Carlo sample `0`. Future chunked replay must preserve sample `0` exactly but does not need to retain the full sampled-score matrix.
+- L4B2.2 extends this with `bolr_posterior_prediction_monte_carlo_rank_streaming()`, which accumulates exact rank statistics in chunks and can retain only sample `0` for Thompson semantics.
+- L4B2.2 also adds a native daily replay state machine with exact in-memory checkpoint export/import for both ready and pending states.
+- Current limitation: L4B2.2 replay checkpoints are still in-memory handles rather than sectioned binary files; durable restartable replay remains the next slice.
 
 ## L4A Integration Notes
 

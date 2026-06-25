@@ -33,6 +33,8 @@ int test_gaussian_state(void);
 int test_gaussian_prediction(void);
 int test_rng(void);
 int test_sampling(void);
+int test_rank_accumulator(void);
+int test_replay(void);
 int test_posterior_objective(void);
 int test_newton(void);
 int test_laplace(void);

@@ -20,6 +20,7 @@
 #include "bolr/partition.h"
 #include "bolr/posterior.h"
 #include "bolr/prediction.h"
+#include "bolr/replay.h"
 #include "bolr/region.h"
 #include "bolr/rng.h"
 #include "bolr/reset.h"

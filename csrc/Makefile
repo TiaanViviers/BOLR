@@ -68,6 +68,7 @@ SRC_FILES := \
   $(SRC_DIR)/gaussian_state.c \
   $(SRC_DIR)/gaussian_prediction.c \
   $(SRC_DIR)/score_sampling.c \
+  $(SRC_DIR)/replay.c \
   $(SRC_DIR)/posterior_objective.c \
   $(SRC_DIR)/newton.c \
   $(SRC_DIR)/line_search.c \
@@ -109,6 +110,8 @@ TEST_SRC := \
   $(TEST_DIR)/test_gaussian_prediction.c \
   $(TEST_DIR)/test_rng.c \
   $(TEST_DIR)/test_sampling.c \
+  $(TEST_DIR)/test_rank_accumulator.c \
+  $(TEST_DIR)/test_replay.c \
   $(TEST_DIR)/test_posterior_objective.c \
   $(TEST_DIR)/test_newton.c \
   $(TEST_DIR)/test_laplace.c \

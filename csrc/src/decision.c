@@ -260,12 +260,18 @@ bolr_status bolr_decision_policy_apply(
                     return BOLR_INVALID_ARGUMENT;
                 }
                 primary[i] = prediction->probability_top_k_values[slot][i];
-            } else {
+            } else if (policy->config.family == BOLR_DECISION_EXPECTED_RANK) {
                 if (prediction->expected_rank == NULL) {
                     free(primary);
                     return BOLR_INVALID_ARGUMENT;
                 }
                 primary[i] = -prediction->expected_rank[i];
+            } else {
+                if ((prediction->score_samples == NULL) || (prediction->score_sample_count <= 0)) {
+                    free(primary);
+                    return BOLR_INVALID_ARGUMENT;
+                }
+                primary[i] = prediction->score_samples[i];
             }
         }
         status = break_ties(

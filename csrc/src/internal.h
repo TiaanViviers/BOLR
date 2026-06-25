@@ -2,8 +2,10 @@
 #define BOLR_INTERNAL_H
 
 #include "bolr/checkpoint.h"
+#include "bolr/adaptation.h"
 #include "bolr/gaussian.h"
 #include "bolr/prediction.h"
+#include "bolr/replay.h"
 #include "bolr/region.h"
 #include "bolr/decision.h"
 #include "bolr/rng.h"
@@ -92,10 +94,58 @@ struct bolr_posterior_prediction {
     bolr_index *probability_top_k_keys;
     bolr_index probability_top_k_count;
     bolr_real *expected_rank;
+    bolr_real *rank_stddev;
+    bolr_real *score_samples;
+    bolr_real *state_samples;
+    bolr_index score_sample_count;
     bolr_index candidate_count;
     bolr_index state_dim;
     uint64_t model_schema_hash;
     uint64_t state_layout_hash;
+};
+
+struct bolr_rank_accumulator {
+    const bolr_allocator *allocator;
+    bolr_index candidate_count;
+    bolr_index *top_k_keys;
+    bolr_index top_k_count;
+    uint64_t sample_count;
+    uint64_t tie_count;
+    uint64_t *best_counts;
+    uint64_t **top_k_counts;
+    uint64_t *rank_sums;
+    uint64_t *rank_squared_sums;
+};
+
+struct bolr_replay_engine {
+    const bolr_allocator *allocator;
+    int adaptive_enabled;
+    bolr_transition_config transition;
+    bolr_real *transition_process_noise;
+    bolr_real *transition_block_discount_scales;
+    const bolr_adaptive_policy *adaptive_policy;
+    bolr_adaptive_state *adaptive_state;
+    bolr_gaussian_state *posterior;
+    bolr_gaussian_state *pending_predictive;
+    bolr_rng *rng;
+    bolr_replay_phase phase;
+    bolr_decision pending_decision;
+};
+
+struct bolr_replay_checkpoint {
+    const bolr_allocator *allocator;
+    int adaptive_enabled;
+    bolr_transition_config transition;
+    bolr_real *transition_process_noise;
+    bolr_real *transition_block_discount_scales;
+    uint64_t adaptive_policy_hash;
+    void *adaptive_state_bytes;
+    size_t adaptive_state_size;
+    bolr_checkpoint_state *posterior_checkpoint;
+    bolr_checkpoint_state *pending_predictive_checkpoint;
+    bolr_rng_checkpoint *rng_checkpoint;
+    bolr_replay_phase phase;
+    bolr_decision pending_decision;
 };
 
 struct bolr_grid_graph {

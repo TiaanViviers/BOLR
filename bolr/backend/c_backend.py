@@ -323,6 +323,50 @@ class PosteriorPredictionDiagnosticsStruct(ctypes.Structure):
     ]
 
 
+class MonteCarloRankingDiagnosticsStruct(ctypes.Structure):
+    _fields_ = [
+        ("sample_count", ctypes.c_int64),
+        ("top_k_count", ctypes.c_int64),
+        ("retained_score_sample_count", ctypes.c_int64),
+        ("retained_state_sample_count", ctypes.c_int64),
+        ("tie_count", ctypes.c_int64),
+        ("winner_entropy", ctypes.c_double),
+        ("effective_winner_count", ctypes.c_double),
+    ]
+
+
+class ReplayRankingConfigStruct(ctypes.Structure):
+    _fields_ = [
+        ("sample_count", ctypes.c_int64),
+        ("chunk_size", ctypes.c_int64),
+        ("antithetic", ctypes.c_int32),
+        ("retention", ctypes.c_int32),
+    ]
+
+
+class ReplayBeginDiagnosticsStruct(ctypes.Structure):
+    _fields_ = [
+        ("phase", ctypes.c_int32),
+        ("selected_index", ctypes.c_int64),
+        ("selected_score_mean", ctypes.c_double),
+        ("selected_score_variance", ctypes.c_double),
+        ("selected_probability_best", ctypes.c_double),
+        ("selected_expected_rank", ctypes.c_double),
+        ("retained_score_sample_count", ctypes.c_int64),
+        ("region_count", ctypes.c_int64),
+    ]
+
+
+class ReplayFinishDiagnosticsStruct(ctypes.Structure):
+    _fields_ = [
+        ("phase_after", ctypes.c_int32),
+        ("selected_index", ctypes.c_int64),
+        ("objective_improvement", ctypes.c_double),
+        ("posterior_trace", ctypes.c_double),
+        ("adaptive_applied", ctypes.c_int32),
+    ]
+
+
 class PairwiseProbabilityStruct(ctypes.Structure):
     _fields_ = [
         ("left_probability", ctypes.c_double),
@@ -495,6 +539,73 @@ class CPosteriorPredictionDiagnostics:
             score_mean_norm=float(struct.score_mean_norm),
             score_variance_sum=float(struct.score_variance_sum),
             explicit_design_frobenius_norm=float(struct.explicit_design_frobenius_norm),
+        )
+
+
+@dataclass(frozen=True)
+class CMonteCarloRankingDiagnostics:
+    sample_count: int
+    top_k_count: int
+    retained_score_sample_count: int
+    retained_state_sample_count: int
+    tie_count: int
+    winner_entropy: float
+    effective_winner_count: float
+
+    @classmethod
+    def from_c(cls, struct: MonteCarloRankingDiagnosticsStruct) -> "CMonteCarloRankingDiagnostics":
+        return cls(
+            sample_count=int(struct.sample_count),
+            top_k_count=int(struct.top_k_count),
+            retained_score_sample_count=int(struct.retained_score_sample_count),
+            retained_state_sample_count=int(struct.retained_state_sample_count),
+            tie_count=int(struct.tie_count),
+            winner_entropy=float(struct.winner_entropy),
+            effective_winner_count=float(struct.effective_winner_count),
+        )
+
+
+@dataclass(frozen=True)
+class CReplayBeginDiagnostics:
+    phase: int
+    selected_index: int
+    selected_score_mean: float
+    selected_score_variance: float
+    selected_probability_best: float
+    selected_expected_rank: float
+    retained_score_sample_count: int
+    region_count: int
+
+    @classmethod
+    def from_c(cls, struct: ReplayBeginDiagnosticsStruct) -> "CReplayBeginDiagnostics":
+        return cls(
+            phase=int(struct.phase),
+            selected_index=int(struct.selected_index),
+            selected_score_mean=float(struct.selected_score_mean),
+            selected_score_variance=float(struct.selected_score_variance),
+            selected_probability_best=float(struct.selected_probability_best),
+            selected_expected_rank=float(struct.selected_expected_rank),
+            retained_score_sample_count=int(struct.retained_score_sample_count),
+            region_count=int(struct.region_count),
+        )
+
+
+@dataclass(frozen=True)
+class CReplayFinishDiagnostics:
+    phase_after: int
+    selected_index: int
+    objective_improvement: float
+    posterior_trace: float
+    adaptive_applied: bool
+
+    @classmethod
+    def from_c(cls, struct: ReplayFinishDiagnosticsStruct) -> "CReplayFinishDiagnostics":
+        return cls(
+            phase_after=int(struct.phase_after),
+            selected_index=int(struct.selected_index),
+            objective_improvement=float(struct.objective_improvement),
+            posterior_trace=float(struct.posterior_trace),
+            adaptive_applied=bool(struct.adaptive_applied),
         )
 
 
@@ -1021,6 +1132,10 @@ def _null_const_vector() -> ConstVectorView:
     return ConstVectorView(ctypes.POINTER(ctypes.c_double)(), 0, 1)
 
 
+def _null_const_matrix() -> ConstMatrixView:
+    return ConstMatrixView(ctypes.POINTER(ctypes.c_double)(), 0, 0, 0, 0)
+
+
 def _block_rows_cols(shape: tuple[int, ...]) -> tuple[int, int]:
     if len(shape) == 1:
         return int(shape[0]), 1
@@ -1312,12 +1427,50 @@ class CLibrary:
         self.lib.bolr_posterior_prediction_set_probability_top_k.restype = ctypes.c_int32
         self.lib.bolr_posterior_prediction_set_expected_rank.argtypes = [ctypes.c_void_p, ConstVectorView]
         self.lib.bolr_posterior_prediction_set_expected_rank.restype = ctypes.c_int32
+        self.lib.bolr_posterior_prediction_set_rank_stddev.argtypes = [ctypes.c_void_p, ConstVectorView]
+        self.lib.bolr_posterior_prediction_set_rank_stddev.restype = ctypes.c_int32
         self.lib.bolr_posterior_prediction_copy_probability_best.argtypes = [ctypes.c_void_p, VectorView]
         self.lib.bolr_posterior_prediction_copy_probability_best.restype = ctypes.c_int32
         self.lib.bolr_posterior_prediction_copy_probability_top_k.argtypes = [ctypes.c_void_p, ctypes.c_int64, VectorView]
         self.lib.bolr_posterior_prediction_copy_probability_top_k.restype = ctypes.c_int32
         self.lib.bolr_posterior_prediction_copy_expected_rank.argtypes = [ctypes.c_void_p, VectorView]
         self.lib.bolr_posterior_prediction_copy_expected_rank.restype = ctypes.c_int32
+        self.lib.bolr_posterior_prediction_copy_rank_stddev.argtypes = [ctypes.c_void_p, VectorView]
+        self.lib.bolr_posterior_prediction_copy_rank_stddev.restype = ctypes.c_int32
+        self.lib.bolr_posterior_prediction_copy_score_sample.argtypes = [ctypes.c_void_p, ctypes.c_int64, VectorView]
+        self.lib.bolr_posterior_prediction_copy_score_sample.restype = ctypes.c_int32
+        self.lib.bolr_posterior_prediction_score_sample_count.argtypes = [ctypes.c_void_p]
+        self.lib.bolr_posterior_prediction_score_sample_count.restype = ctypes.c_int64
+        self.lib.bolr_posterior_prediction_monte_carlo_rank.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ConstVectorView,
+            ctypes.c_void_p,
+            ctypes.c_int64,
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_int64),
+            ctypes.c_int64,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_void_p,
+            ctypes.POINTER(MonteCarloRankingDiagnosticsStruct),
+        ]
+        self.lib.bolr_posterior_prediction_monte_carlo_rank.restype = ctypes.c_int32
+        self.lib.bolr_posterior_prediction_monte_carlo_rank_streaming.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ConstVectorView,
+            ctypes.c_void_p,
+            ctypes.c_int64,
+            ctypes.c_int64,
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_int64),
+            ctypes.c_int64,
+            ctypes.c_int32,
+            ctypes.c_void_p,
+            ctypes.POINTER(MonteCarloRankingDiagnosticsStruct),
+        ]
+        self.lib.bolr_posterior_prediction_monte_carlo_rank_streaming.restype = ctypes.c_int32
         self.lib.bolr_probability_entropy.argtypes = [ConstVectorView, ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double)]
         self.lib.bolr_probability_entropy.restype = ctypes.c_int32
         self.lib.bolr_grid_graph_create.argtypes = [ctypes.c_int64, ctypes.POINTER(ctypes.c_int64), ctypes.c_int64, ctypes.POINTER(ctypes.c_int64), ctypes.POINTER(ctypes.c_int64), ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
@@ -1353,6 +1506,42 @@ class CLibrary:
         self.lib.bolr_decision_policy_destroy.argtypes = [ctypes.c_void_p]
         self.lib.bolr_decision_policy_apply.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(DecisionStruct), ctypes.POINTER(DecisionDiagnosticsCStruct)]
         self.lib.bolr_decision_policy_apply.restype = ctypes.c_int32
+        self.lib.bolr_replay_engine_create_fixed.argtypes = [ctypes.c_void_p, ctypes.POINTER(TransitionConfig), ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_replay_engine_create_fixed.restype = ctypes.c_int32
+        self.lib.bolr_replay_engine_create_adaptive.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_replay_engine_create_adaptive.restype = ctypes.c_int32
+        self.lib.bolr_replay_engine_destroy.argtypes = [ctypes.c_void_p]
+        self.lib.bolr_replay_engine_phase.argtypes = [ctypes.c_void_p]
+        self.lib.bolr_replay_engine_phase.restype = ctypes.c_int32
+        self.lib.bolr_replay_engine_copy_posterior_mean.argtypes = [ctypes.c_void_p, VectorView]
+        self.lib.bolr_replay_engine_copy_posterior_mean.restype = ctypes.c_int32
+        self.lib.bolr_replay_engine_copy_posterior_covariance.argtypes = [ctypes.c_void_p, MatrixView]
+        self.lib.bolr_replay_engine_copy_posterior_covariance.restype = ctypes.c_int32
+        self.lib.bolr_replay_engine_pending_selected_index.argtypes = [ctypes.c_void_p]
+        self.lib.bolr_replay_engine_pending_selected_index.restype = ctypes.c_int64
+        self.lib.bolr_replay_engine_begin_day.argtypes = [
+            ctypes.c_void_p, ctypes.c_void_p, ConstVectorView, ctypes.POINTER(ReplayRankingConfigStruct),
+            ctypes.POINTER(ctypes.c_int64), ctypes.c_int64, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(RegionConfigStruct),
+            ctypes.c_void_p, ctypes.POINTER(DecisionStruct), ctypes.POINTER(ReplayBeginDiagnosticsStruct)
+        ]
+        self.lib.bolr_replay_engine_begin_day.restype = ctypes.c_int32
+        self.lib.bolr_replay_engine_finish_day.argtypes = [
+            ctypes.c_void_p, ctypes.c_void_p, ConstVectorView, ctypes.POINTER(ObservationOperatorStruct), ctypes.POINTER(NewtonConfigStruct),
+            ctypes.c_double, ctypes.c_double, ctypes.c_int32, ctypes.c_void_p,
+            ctypes.POINTER(LaplaceDiagnosticsStruct), ctypes.POINTER(AdaptationDiagnosticsStruct), ctypes.POINTER(ReplayFinishDiagnosticsStruct)
+        ]
+        self.lib.bolr_replay_engine_finish_day.restype = ctypes.c_int32
+        self.lib.bolr_replay_engine_export_checkpoint.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_replay_engine_export_checkpoint.restype = ctypes.c_int32
+        self.lib.bolr_replay_engine_import_fixed.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_replay_engine_import_fixed.restype = ctypes.c_int32
+        self.lib.bolr_replay_engine_import_adaptive.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_replay_engine_import_adaptive.restype = ctypes.c_int32
+        self.lib.bolr_replay_checkpoint_destroy.argtypes = [ctypes.c_void_p]
+        self.lib.bolr_replay_checkpoint_phase.argtypes = [ctypes.c_void_p]
+        self.lib.bolr_replay_checkpoint_phase.restype = ctypes.c_int32
+        self.lib.bolr_replay_checkpoint_pending_selected_index.argtypes = [ctypes.c_void_p]
+        self.lib.bolr_replay_checkpoint_pending_selected_index.restype = ctypes.c_int64
         self.lib.bolr_realized_best_distribution.argtypes = [ConstVectorView, ctypes.c_double, VectorView]
         self.lib.bolr_realized_best_distribution.restype = ctypes.c_int32
         self.lib.bolr_realized_top_k_indicator.argtypes = [ConstVectorView, ctypes.c_int64, VectorView]
@@ -1364,8 +1553,8 @@ class CLibrary:
         self.lib.bolr_region_coverage.argtypes = [ctypes.POINTER(ctypes.c_int64), ctypes.c_int64, ConstVectorView, ctypes.c_double, ctypes.POINTER(ctypes.c_int32)]
         self.lib.bolr_region_coverage.restype = ctypes.c_int32
 
-        if self.lib.bolr_abi_version_minor() < 5:
-            raise CBackendError("BOLR C backend is missing Phase L4B1 symbols.")
+        if self.lib.bolr_abi_version_minor() < 7:
+            raise CBackendError("BOLR C backend is missing Phase L4B2.2 symbols.")
 
     @staticmethod
     def const_vector(array: np.ndarray) -> ConstVectorView:
@@ -2130,9 +2319,21 @@ _DECISION_FAMILY = {
     "maximum_probability_top_k": 3,
     "minimum_expected_rank": 4,
     "highest_mass_region": 5,
+    "thompson": 6,
 }
 _REGION_STATISTIC = {"probability_best": 1, "inclusion_mass": 2}
 _REGION_REPRESENTATIVE = {"posterior_mean": 1, "probability_best": 2, "probability_top_k": 3, "weighted_medoid": 4}
+_SCORE_RETENTION = {"none": 0, "sample_zero": 1, "all": 2}
+_TRANSITION_FAMILY = {
+    "frozen": 0,
+    "additive": 1,
+    "isotropic_random_walk": 1,
+    "diagonal_random_walk": 1,
+    "penalty_shaped_random_walk": 1,
+    "discount": 2,
+    "covariance_discount": 2,
+    "zero_noise": 3,
+}
 
 
 class CPosteriorPrediction(CHandle):
@@ -2244,6 +2445,10 @@ class CPosteriorPrediction(CHandle):
         arr = _as_f64_vector(expected_rank)
         status_ok(self.library.lib, self.library.lib.bolr_posterior_prediction_set_expected_rank(self._require_open(), self.library.const_vector(arr)), operation="bolr_posterior_prediction_set_expected_rank")
 
+    def set_rank_stddev(self, rank_stddev: np.ndarray) -> None:
+        arr = _as_f64_vector(rank_stddev)
+        status_ok(self.library.lib, self.library.lib.bolr_posterior_prediction_set_rank_stddev(self._require_open(), self.library.const_vector(arr)), operation="bolr_posterior_prediction_set_rank_stddev")
+
     def probability_best(self) -> np.ndarray:
         output = np.empty(self.candidate_count, dtype=np.float64)
         status_ok(self.library.lib, self.library.lib.bolr_posterior_prediction_copy_probability_best(self._require_open(), self.library.vector(output)), operation="bolr_posterior_prediction_copy_probability_best")
@@ -2258,6 +2463,92 @@ class CPosteriorPrediction(CHandle):
         output = np.empty(self.candidate_count, dtype=np.float64)
         status_ok(self.library.lib, self.library.lib.bolr_posterior_prediction_copy_expected_rank(self._require_open(), self.library.vector(output)), operation="bolr_posterior_prediction_copy_expected_rank")
         return output
+
+    def rank_stddev(self) -> np.ndarray:
+        output = np.empty(self.candidate_count, dtype=np.float64)
+        status_ok(self.library.lib, self.library.lib.bolr_posterior_prediction_copy_rank_stddev(self._require_open(), self.library.vector(output)), operation="bolr_posterior_prediction_copy_rank_stddev")
+        return output
+
+    @property
+    def score_sample_count(self) -> int:
+        return int(self.library.lib.bolr_posterior_prediction_score_sample_count(self._require_open()))
+
+    def score_sample(self, sample_index: int) -> np.ndarray:
+        output = np.empty(self.candidate_count, dtype=np.float64)
+        status_ok(self.library.lib, self.library.lib.bolr_posterior_prediction_copy_score_sample(self._require_open(), int(sample_index), self.library.vector(output)), operation="bolr_posterior_prediction_copy_score_sample")
+        return output
+
+    def monte_carlo_rank(
+        self,
+        rng: CRNG,
+        sample_count: int,
+        *,
+        top_k_values: tuple[int, ...] = (),
+        antithetic: bool = False,
+        retain_score_samples: bool = False,
+        retain_state_samples: bool = False,
+    ) -> CMonteCarloRankingDiagnostics:
+        top_k = np.ascontiguousarray(np.asarray(tuple(int(k) for k in top_k_values), dtype=np.int64))
+        diagnostics = MonteCarloRankingDiagnosticsStruct()
+        workspace = CWorkspace(self.model.candidate_count, self.model.state_dimension, max(self.model.candidate_count, self.daily_context.context_vector.size), library=self.library)
+        try:
+            status_ok(
+                self.library.lib,
+                self.library.lib.bolr_posterior_prediction_monte_carlo_rank(
+                    self._require_open(),
+                    self.model._require_open(),
+                    self.daily_context.const_view(self.library),
+                    rng._require_open(),
+                    int(sample_count),
+                    1 if antithetic else 0,
+                    None if top_k.size == 0 else top_k.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
+                    int(top_k.size),
+                    1 if retain_score_samples else 0,
+                    1 if retain_state_samples else 0,
+                    workspace._require_open(),
+                    ctypes.byref(diagnostics),
+                ),
+                operation="bolr_posterior_prediction_monte_carlo_rank",
+            )
+        finally:
+            workspace.close()
+        return CMonteCarloRankingDiagnostics.from_c(diagnostics)
+
+    def monte_carlo_rank_streaming(
+        self,
+        rng: CRNG,
+        sample_count: int,
+        *,
+        chunk_size: int,
+        top_k_values: tuple[int, ...] = (),
+        antithetic: bool = False,
+        retention: str = "none",
+    ) -> CMonteCarloRankingDiagnostics:
+        top_k = np.ascontiguousarray(np.asarray(tuple(int(k) for k in top_k_values), dtype=np.int64))
+        diagnostics = MonteCarloRankingDiagnosticsStruct()
+        workspace = CWorkspace(self.model.candidate_count, self.model.state_dimension, max(self.model.candidate_count, self.daily_context.context_vector.size), library=self.library)
+        try:
+            status_ok(
+                self.library.lib,
+                self.library.lib.bolr_posterior_prediction_monte_carlo_rank_streaming(
+                    self._require_open(),
+                    self.model._require_open(),
+                    self.daily_context.const_view(self.library),
+                    rng._require_open(),
+                    int(sample_count),
+                    int(chunk_size),
+                    1 if antithetic else 0,
+                    None if top_k.size == 0 else top_k.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
+                    int(top_k.size),
+                    _SCORE_RETENTION[str(retention)],
+                    workspace._require_open(),
+                    ctypes.byref(diagnostics),
+                ),
+                operation="bolr_posterior_prediction_monte_carlo_rank_streaming",
+            )
+        finally:
+            workspace.close()
+        return CMonteCarloRankingDiagnostics.from_c(diagnostics)
 
 
 class CGridGraph(CHandle):
@@ -2404,6 +2695,143 @@ class CDecisionPolicy(CHandle):
         return CDecisionResult.from_c(decision), CDecisionDiagnostics.from_c(diagnostics)
 
 
+class CReplayCheckpoint(CHandle):
+    def __init__(self, handle: ctypes.c_void_p, *, library: CLibrary | None = None) -> None:
+        self.library = CLibrary() if library is None else library
+        super().__init__(handle, self.library.lib.bolr_replay_checkpoint_destroy)
+
+    @property
+    def phase(self) -> int:
+        return int(self.library.lib.bolr_replay_checkpoint_phase(self._require_open()))
+
+    @property
+    def pending_selected_index(self) -> int:
+        return int(self.library.lib.bolr_replay_checkpoint_pending_selected_index(self._require_open()))
+
+
+class CReplayEngine(CHandle):
+    def __init__(self, handle: ctypes.c_void_p, *, library: CLibrary | None = None) -> None:
+        self.library = CLibrary() if library is None else library
+        super().__init__(handle, self.library.lib.bolr_replay_engine_destroy)
+
+    @property
+    def phase(self) -> int:
+        return int(self.library.lib.bolr_replay_engine_phase(self._require_open()))
+
+    @property
+    def pending_selected_index(self) -> int:
+        return int(self.library.lib.bolr_replay_engine_pending_selected_index(self._require_open()))
+
+    def posterior_mean(self, dimension: int) -> np.ndarray:
+        output = np.empty(int(dimension), dtype=np.float64)
+        status_ok(self.library.lib, self.library.lib.bolr_replay_engine_copy_posterior_mean(self._require_open(), self.library.vector(output)), operation="bolr_replay_engine_copy_posterior_mean")
+        return output
+
+    def posterior_covariance(self, dimension: int) -> np.ndarray:
+        output = np.empty((int(dimension), int(dimension)), dtype=np.float64)
+        status_ok(self.library.lib, self.library.lib.bolr_replay_engine_copy_posterior_covariance(self._require_open(), self.library.matrix(output)), operation="bolr_replay_engine_copy_posterior_covariance")
+        return output
+
+    def begin_day(
+        self,
+        model: "CModelArtifacts",
+        decision_policy: CDecisionPolicy,
+        *,
+        daily_context: CScoreContext | None = None,
+        ranking_sample_count: int,
+        chunk_size: int,
+        top_k_values: tuple[int, ...],
+        antithetic: bool = False,
+        retention: str = "none",
+        graph: CGridGraph | None = None,
+        region_config: Any | None = None,
+    ) -> tuple[CDecisionResult, CReplayBeginDiagnostics]:
+        daily_context = CScoreContext() if daily_context is None else daily_context
+        ranking = ReplayRankingConfigStruct(int(ranking_sample_count), int(chunk_size), 1 if antithetic else 0, _SCORE_RETENTION[str(retention)])
+        top_k = np.ascontiguousarray(np.asarray(tuple(int(k) for k in top_k_values), dtype=np.int64))
+        workspace = CWorkspace(model.candidate_count, model.state_dimension, max(model.candidate_count, daily_context.context_vector.size), library=self.library)
+        decision = DecisionStruct()
+        diagnostics = ReplayBeginDiagnosticsStruct()
+        region_cfg = None
+        if region_config is not None:
+            family = _CONSENSUS_FAMILY[str(region_config.consensus_family)]
+            top_fraction = getattr(region_config, "top_fraction", 0.0)
+            region_cfg = RegionConfigStruct(
+                0 if getattr(region_config, "top_k", None) is None else int(region_config.top_k),
+                0.0 if top_fraction is None else float(top_fraction),
+                float(region_config.inclusion_threshold),
+                family,
+            )
+        try:
+            status_ok(
+                self.library.lib,
+                self.library.lib.bolr_replay_engine_begin_day(
+                    self._require_open(),
+                    model._require_open(),
+                    daily_context.const_view(self.library),
+                    ctypes.byref(ranking),
+                    None if top_k.size == 0 else top_k.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
+                    int(top_k.size),
+                    decision_policy._require_open(),
+                    None if graph is None else graph._require_open(),
+                    None if region_cfg is None else ctypes.byref(region_cfg),
+                    workspace._require_open(),
+                    ctypes.byref(decision),
+                    ctypes.byref(diagnostics),
+                ),
+                operation="bolr_replay_engine_begin_day",
+            )
+        finally:
+            workspace.close()
+        return CDecisionResult.from_c(decision), CReplayBeginDiagnostics.from_c(diagnostics)
+
+    def finish_day(
+        self,
+        model: "CModelArtifacts",
+        observation: Any,
+        *,
+        daily_context: CScoreContext | None = None,
+        newton_config: CNewtonConfig | None = None,
+        effective_strength: float = 1.0,
+        information_size: float = 1.0,
+        informative: bool = True,
+    ) -> tuple[CLaplaceDiagnostics, CReplayFinishDiagnostics]:
+        daily_context = CScoreContext() if daily_context is None else daily_context
+        config = CNewtonConfig() if newton_config is None else newton_config
+        config_struct = config.to_c()
+        operator = observation.operator()
+        laplace = LaplaceDiagnosticsStruct()
+        finish = ReplayFinishDiagnosticsStruct()
+        workspace = CInferenceWorkspace(model.state_dimension, model.candidate_count, library=self.library)
+        try:
+            status_ok(
+                self.library.lib,
+                self.library.lib.bolr_replay_engine_finish_day(
+                    self._require_open(),
+                    model._require_open(),
+                    daily_context.const_view(self.library),
+                    ctypes.byref(operator),
+                    ctypes.byref(config_struct),
+                    float(effective_strength),
+                    float(information_size),
+                    1 if informative else 0,
+                    workspace._require_open(),
+                    ctypes.byref(laplace),
+                    None,
+                    ctypes.byref(finish),
+                ),
+                operation="bolr_replay_engine_finish_day",
+            )
+        finally:
+            workspace.close()
+        return CLaplaceDiagnostics.from_c(laplace), CReplayFinishDiagnostics.from_c(finish)
+
+    def export_checkpoint(self) -> CReplayCheckpoint:
+        handle = ctypes.c_void_p()
+        status_ok(self.library.lib, self.library.lib.bolr_replay_engine_export_checkpoint(self._require_open(), None, ctypes.byref(handle)), operation="bolr_replay_engine_export_checkpoint")
+        return CReplayCheckpoint(handle, library=self.library)
+
+
 class CModelArtifacts(CHandle):
     def __init__(self, composite_model: Any, batch: object, *, library: CLibrary | None = None) -> None:
         from bolr.model.score_blocks import ContextInteractionBlock, DynamicSurfaceBlock, GraphResidualBlock, LinearDesignBlock
@@ -2533,6 +2961,15 @@ class CModelArtifacts(CHandle):
 class CBackend(NumericalBackend):
     library: CLibrary = CLibrary()
 
+    def _transition_family_code(self, family: Any, has_process_noise: bool) -> int:
+        if isinstance(family, str):
+            if family not in _TRANSITION_FAMILY:
+                raise ValueError(f"Unsupported transition family for C replay engine: {family!r}")
+            return _TRANSITION_FAMILY[family]
+        if family is None:
+            return 1 if has_process_noise else 2
+        return int(family)
+
     def posterior_prediction(self, predictive_state: CGaussianState, model: CModelArtifacts, daily_context: CScoreContext | None = None) -> CPosteriorPrediction:
         return CPosteriorPrediction(predictive_state, model, daily_context, library=self.library)
 
@@ -2547,6 +2984,34 @@ class CBackend(NumericalBackend):
 
     def rng(self, seed: int, stream: int = 0) -> CRNG:
         return CRNG(seed=seed, stream=stream, library=self.library)
+
+    def replay_engine_fixed(self, posterior: CGaussianState, transition: Any, rng: CRNG) -> CReplayEngine:
+        handle = ctypes.c_void_p()
+        process_noise = getattr(transition, "process_noise", None)
+        block_discount_scales = getattr(transition, "block_discount_scales", None)
+        cfg = TransitionConfig(
+            self._transition_family_code(getattr(transition, "family", None), process_noise is not None),
+            self.library.const_matrix(_as_f64_matrix(process_noise)) if process_noise is not None else _null_const_matrix(),
+            float(getattr(transition, "global_discount", 0.0)),
+            self.library.const_vector(_as_f64_vector(block_discount_scales)) if block_discount_scales is not None else _null_const_vector(),
+        )
+        status_ok(self.library.lib, self.library.lib.bolr_replay_engine_create_fixed(posterior._require_open(), ctypes.byref(cfg), rng._require_open(), None, ctypes.byref(handle)), operation="bolr_replay_engine_create_fixed")
+        return CReplayEngine(handle, library=self.library)
+
+    def replay_engine_adaptive(self, posterior: CGaussianState, policy: CAdaptivePolicy, adaptive_state: CAdaptiveState, rng: CRNG) -> CReplayEngine:
+        handle = ctypes.c_void_p()
+        status_ok(self.library.lib, self.library.lib.bolr_replay_engine_create_adaptive(posterior._require_open(), policy._require_open(), adaptive_state._require_open(), rng._require_open(), None, ctypes.byref(handle)), operation="bolr_replay_engine_create_adaptive")
+        return CReplayEngine(handle, library=self.library)
+
+    def replay_engine_import_fixed(self, checkpoint: CReplayCheckpoint) -> CReplayEngine:
+        handle = ctypes.c_void_p()
+        status_ok(self.library.lib, self.library.lib.bolr_replay_engine_import_fixed(checkpoint._require_open(), None, ctypes.byref(handle)), operation="bolr_replay_engine_import_fixed")
+        return CReplayEngine(handle, library=self.library)
+
+    def replay_engine_import_adaptive(self, checkpoint: CReplayCheckpoint, policy: CAdaptivePolicy) -> CReplayEngine:
+        handle = ctypes.c_void_p()
+        status_ok(self.library.lib, self.library.lib.bolr_replay_engine_import_adaptive(checkpoint._require_open(), policy._require_open(), None, ctypes.byref(handle)), operation="bolr_replay_engine_import_adaptive")
+        return CReplayEngine(handle, library=self.library)
 
     def sample_gaussian_state(
         self,

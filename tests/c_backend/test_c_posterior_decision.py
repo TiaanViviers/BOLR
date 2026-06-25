@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 
 from bolr.backend.c_backend import CBackend
@@ -12,12 +14,14 @@ from bolr.decision.policies import (
     MaximumProbabilityTopKDecisionPolicy,
     MinimumExpectedRankDecisionPolicy,
     PosteriorMeanDecisionPolicy,
+    ThompsonDecisionPolicy,
 )
-from bolr.decision.prediction import build_posterior_prediction, pairwise_win_probabilities
+from bolr.decision.prediction import PosteriorPrediction, build_posterior_prediction, monte_carlo_rank_summaries, pairwise_win_probabilities
 from bolr.model.composite import CompositeScoreModel
 from bolr.model.graph import build_canonical_grid_graph
 from bolr.model.score_blocks import DynamicSurfaceBlock, StaticBaselineBlock
 from bolr.posterior.state import GaussianPosterior
+from bolr.targets.soft_target import Observation as SoftTargetObservation
 
 
 def _grid() -> CandidateGrid:
@@ -153,3 +157,219 @@ def test_c_decision_calibration_matches_python_metrics() -> None:
     assert np.isclose(backend.probability_best_brier(probability_best, utilities), probability_best_brier(probability_best, utilities))
     assert np.isclose(backend.top_k_brier(probability_top_2, utilities, 2), top_k_brier(probability_top_2, utilities, k=2))
     assert backend.region_coverage(np.array([0, 2]), utilities) == region_coverage(np.array([0, 2]), utilities)
+
+
+def test_c_monte_carlo_ranking_and_thompson_match_python_semantics() -> None:
+    backend = CBackend()
+    design = np.array(
+        [
+            [1.0, 0.0],
+            [0.8, 0.2],
+            [0.3, 0.7],
+            [0.0, 1.0],
+        ],
+        dtype=float,
+    )
+    state_mean = np.array([0.2, -0.1], dtype=float)
+    state_covariance = np.array([[0.3, 0.05], [0.05, 0.2]], dtype=float)
+    score_mean = np.array([0.5, 0.45, 0.1, -0.05], dtype=float)
+    _, artifacts = _artifacts(backend, design, score_mean)
+    try:
+        state = artifacts.state_from_posterior(GaussianPosterior(mean=state_mean, covariance=state_covariance))
+        with state:
+            with backend.posterior_prediction(state, artifacts) as prediction:
+                with backend.rng(seed=17, stream=3) as rng:
+                    diagnostics = prediction.monte_carlo_rank(
+                        rng,
+                        96,
+                        top_k_values=(1, 2, 3),
+                        antithetic=True,
+                        retain_score_samples=True,
+                    )
+                assert diagnostics.sample_count == 96
+                assert diagnostics.retained_score_sample_count == 96
+                assert prediction.score_sample_count == 96
+                score_samples = np.vstack([prediction.score_sample(i) for i in range(prediction.score_sample_count)])
+                rank_stats = monte_carlo_rank_summaries(score_samples, top_k_values=(1, 2, 3))
+                assert np.allclose(prediction.probability_best(), rank_stats["probability_best"])
+                assert np.allclose(prediction.probability_top_k(2), rank_stats["probability_top_k"][2])
+                assert np.allclose(prediction.expected_rank(), rank_stats["expected_rank"])
+                assert np.allclose(prediction.rank_stddev(), rank_stats["rank_stddev"])
+                assert diagnostics.tie_count == int(rank_stats["tie_count"])
+
+                python_prediction = PosteriorPrediction(
+                    date=None,
+                    score_mean=prediction.score_mean(),
+                    score_variance=prediction.score_variance(),
+                    state_mean=prediction.state_mean(),
+                    state_covariance=prediction.state_covariance(),
+                    probability_best=prediction.probability_best(),
+                    probability_top_k={1: prediction.probability_top_k(1), 2: prediction.probability_top_k(2), 3: prediction.probability_top_k(3)},
+                    expected_rank=prediction.expected_rank(),
+                    rank_stddev=prediction.rank_stddev(),
+                    score_samples=score_samples,
+                )
+                with backend.decision_policy(DecisionPolicyConfig(family="thompson")) as policy:
+                    c_decision, _ = policy.apply(prediction)
+                py_decision = ThompsonDecisionPolicy().decide(python_prediction, candidate_grid=None)
+                assert c_decision.selected_index == py_decision.selected_index
+    finally:
+        artifacts.close()
+
+
+def test_c_streaming_monte_carlo_ranking_matches_retained_reference() -> None:
+    backend = CBackend()
+    design = np.array(
+        [
+            [1.0, 0.0],
+            [0.8, 0.2],
+            [0.3, 0.7],
+            [0.0, 1.0],
+        ],
+        dtype=float,
+    )
+    state_mean = np.array([0.2, -0.1], dtype=float)
+    state_covariance = np.array([[0.3, 0.05], [0.05, 0.2]], dtype=float)
+    score_mean = np.array([0.5, 0.45, 0.1, -0.05], dtype=float)
+    _, artifacts = _artifacts(backend, design, score_mean)
+    try:
+        state = artifacts.state_from_posterior(GaussianPosterior(mean=state_mean, covariance=state_covariance))
+        with state:
+            with backend.posterior_prediction(state, artifacts) as retained_prediction:
+                with backend.rng(seed=23, stream=5) as retained_rng:
+                    retained_diag = retained_prediction.monte_carlo_rank(
+                        retained_rng,
+                        96,
+                        top_k_values=(1, 2, 3),
+                        antithetic=True,
+                        retain_score_samples=True,
+                    )
+
+                with backend.posterior_prediction(state, artifacts) as streaming_prediction:
+                    with backend.rng(seed=23, stream=5) as streaming_rng:
+                        streaming_diag = streaming_prediction.monte_carlo_rank_streaming(
+                            streaming_rng,
+                            96,
+                            chunk_size=11,
+                            top_k_values=(1, 2, 3),
+                            antithetic=True,
+                            retention="sample_zero",
+                        )
+
+                    assert streaming_diag.sample_count == retained_diag.sample_count
+                    assert streaming_diag.tie_count == retained_diag.tie_count
+                    assert streaming_diag.retained_score_sample_count == 1
+                    assert streaming_prediction.score_sample_count == 1
+                    assert np.allclose(streaming_prediction.probability_best(), retained_prediction.probability_best())
+                    assert np.allclose(streaming_prediction.probability_top_k(2), retained_prediction.probability_top_k(2))
+                    assert np.allclose(streaming_prediction.expected_rank(), retained_prediction.expected_rank())
+                    assert np.allclose(streaming_prediction.rank_stddev(), retained_prediction.rank_stddev())
+                    assert np.allclose(streaming_prediction.score_sample(0), retained_prediction.score_sample(0))
+
+                    with backend.decision_policy(DecisionPolicyConfig(family="thompson")) as policy:
+                        retained_decision, _ = policy.apply(retained_prediction)
+                        streaming_decision, _ = policy.apply(streaming_prediction)
+                    assert streaming_decision.selected_index == retained_decision.selected_index
+    finally:
+        artifacts.close()
+
+
+def test_c_replay_engine_checkpoint_resume_matches_uninterrupted_sequence() -> None:
+    backend = CBackend()
+    design = np.array(
+        [
+            [1.0, 0.0],
+            [0.5, 0.5],
+            [0.0, 1.0],
+        ],
+        dtype=float,
+    )
+    state_mean = np.zeros(2, dtype=float)
+    state_covariance = np.eye(2, dtype=float) * 0.2
+    score_mean = np.array([0.4, 0.2, -0.1], dtype=float)
+    target = np.array([0.6, 0.3, 0.1], dtype=float)
+    _, artifacts = _artifacts(backend, design, score_mean)
+    transition = SimpleNamespace(
+        family="additive",
+        process_noise=np.eye(2, dtype=float) * 0.01,
+        global_discount=0.0,
+        block_discount_scales=None,
+    )
+    try:
+        posterior_a = artifacts.state_from_posterior(GaussianPosterior(mean=state_mean, covariance=state_covariance))
+        posterior_b = artifacts.state_from_posterior(GaussianPosterior(mean=state_mean, covariance=state_covariance))
+        with posterior_a, posterior_b:
+            with backend.rng(seed=7, stream=2) as rng_a, backend.rng(seed=7, stream=2) as rng_b:
+                with backend.replay_engine_fixed(posterior_a, transition, rng_a) as resumed_engine:
+                    with backend.replay_engine_fixed(posterior_b, transition, rng_b) as direct_engine:
+                        with backend.decision_policy(DecisionPolicyConfig(family="thompson")) as policy:
+                            resumed_decision, resumed_begin = resumed_engine.begin_day(
+                                artifacts,
+                                policy,
+                                ranking_sample_count=16,
+                                chunk_size=5,
+                                top_k_values=(1, 2),
+                                antithetic=True,
+                                retention="sample_zero",
+                            )
+                            assert resumed_engine.phase == 2
+                            assert resumed_begin.phase == 2
+                            assert resumed_engine.pending_selected_index == resumed_decision.selected_index
+
+                            with resumed_engine.export_checkpoint() as checkpoint:
+                                assert checkpoint.phase == 2
+                                assert checkpoint.pending_selected_index == resumed_decision.selected_index
+                                with backend.replay_engine_import_fixed(checkpoint) as restored_engine:
+                                    with backend.candidate_a_observation(
+                                        SoftTargetObservation(
+                                            type="SOFT_TARGET",
+                                            utility_values=target.copy(),
+                                            transformed_values=target.copy(),
+                                            target_probabilities=target,
+                                            tolerance=0.0,
+                                            update_weight=1.0,
+                                            metadata={},
+                                        )
+                                    ) as observation:
+                                        restored_laplace, restored_finish = restored_engine.finish_day(
+                                            artifacts,
+                                            observation,
+                                            effective_strength=1.0,
+                                            information_size=1.0,
+                                            informative=True,
+                                        )
+                                        direct_decision, direct_begin = direct_engine.begin_day(
+                                            artifacts,
+                                            policy,
+                                            ranking_sample_count=16,
+                                            chunk_size=5,
+                                            top_k_values=(1, 2),
+                                            antithetic=True,
+                                            retention="sample_zero",
+                                        )
+                                        direct_laplace, direct_finish = direct_engine.finish_day(
+                                            artifacts,
+                                            observation,
+                                            effective_strength=1.0,
+                                            information_size=1.0,
+                                            informative=True,
+                                        )
+
+                                    assert direct_engine.phase == 1
+                                    assert restored_engine.phase == 1
+                                    assert direct_begin.phase == 2
+                                    assert direct_finish.phase_after == 1
+                                    assert restored_finish.phase_after == 1
+                                    assert direct_decision.selected_index == resumed_decision.selected_index
+                                    assert np.allclose(
+                                        restored_engine.posterior_mean(artifacts.state_dimension),
+                                        direct_engine.posterior_mean(artifacts.state_dimension),
+                                    )
+                                    assert np.allclose(
+                                        restored_engine.posterior_covariance(artifacts.state_dimension),
+                                        direct_engine.posterior_covariance(artifacts.state_dimension),
+                                    )
+                                    assert np.isclose(restored_laplace.objective_improvement, direct_laplace.objective_improvement)
+                                    assert np.isclose(restored_finish.posterior_trace, direct_finish.posterior_trace)
+    finally:
+        artifacts.close()
