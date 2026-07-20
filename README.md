@@ -23,20 +23,21 @@ Bayesian Online Listwise Ranking for applications to quantative trading
 - Phase L4B2.2: ABI `1.7.0` native bounded-memory replay support is implemented, including streaming Monte Carlo rank accumulation with optional sample-zero retention, exact reusable rank accumulators, a native causal replay state machine, in-memory ready/pending replay checkpoints, fixed and adaptive replay handles, Candidate A and Candidate B replay integration, transactional failure semantics, ctypes bindings, and native/Python checkpoint-resume equivalence coverage
 - Phase L4B2.3: ABI `1.8.0` versioned portable checkpoint codec and atomic file persistence are implemented, including little-endian sectioned format `v1.0` (`BOLRCP01`), CRC32 integrity checks, ready/pending encode-decode, restore-context validation, atomic POSIX write/read, injectable I/O failure hooks, Python byte/file wrappers, golden fixtures, and file-based replay restart coverage
 - Phase L5.1: full native Candidate A historical replay harness is implemented, including Python orchestration around the C replay engine, durable checkpoint scheduling, forced ready/pending restart, daily/manifest/summary outputs, timing diagnostics, fixed-transition historical runs, and bounded adaptive fixture coverage; a documented full-YM command is provided, and smoke/restart historical executions validate the harness (full-period production evidence remains an operator run, not a pytest gate)
+- Phase L5.2: Candidate A policy/static-baseline matrix is implemented, including always-41, warm-up static, trailing mean, oracle replay static, and Candidate A fixed/adaptive × {posterior_mean, probability_best, Thompson} comparison with selection/turnover/bad-switch and candidate-41 delta diagnostics. L5.1 finding: Candidate A fixed/probability-best behaved almost statically (candidate 41). L5.2 compares Candidate A policies against static and trailing baselines.
 
 ## C Backend ABI
 
 - Current native ABI: `1.8.0`
 - Checkpoint format: `1.0` (`BOLRCP01`)
-- Release gate validated for L5.1:
+- Release gate validated for L5.2:
   - `make -C csrc BUILD_DIR=build/l5-debug-gcc clean test CC=gcc`
   - `make -C csrc BUILD_DIR=build/l5-debug-clang clean test CC=clang`
   - `make -C csrc BUILD_DIR=build/l5-sanitize-gcc clean sanitize CC=gcc`
   - `make -C csrc BUILD_DIR=build/l5-release-gcc clean release CC=gcc`
   - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q tests/c_backend`
   - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q`
-  - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q tests/c_backend/test_native_candidate_a_replay.py`
-  - documented historical commands in `research_docs/22_L5_1_Full_Native_Candidate_A_Historical_Replay.md` and `scripts/run_native_candidate_a_replay.py`
+  - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q tests/c_backend/test_l5_candidate_a_policy_matrix.py`
+  - documented matrix command in `research_docs/23_L5_2_Candidate_A_Policy_Matrix_and_Static_Baselines.md` and `scripts/run_l5_candidate_a_policy_matrix.py`
 
 ## L4B2 Ranking Notes
 
@@ -51,7 +52,8 @@ Bayesian Online Listwise Ranking for applications to quantative trading
 - L4B2.2 extends this with `bolr_posterior_prediction_monte_carlo_rank_streaming()`, which accumulates exact rank statistics in chunks and can retain only sample `0` for Thompson semantics.
 - L4B2.2 also adds a native daily replay state machine with exact in-memory checkpoint export/import for both ready and pending states.
 - L4B2.3 adds portable sectioned binary checkpoints (`BOLRCP01` v1.0) with CRC32 integrity, atomic POSIX persistence, and file-based ready/pending restart.
-- L5.1 adds the native Candidate A historical replay harness with durable checkpoint restart; measured production optimisation and Candidate B historical replay remain later L5 work.
+- L5.1 adds the native Candidate A historical replay harness with durable checkpoint restart.
+- L5.2 adds Candidate A policy/static-baseline comparison; Candidate B historical replay remains later L5 work.
 
 ## L4A Integration Notes
 
