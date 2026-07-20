@@ -1,0 +1,103 @@
+{
+  "abi_version": "1.8.0",
+  "backend_provenance": {
+    "adaptive_enabled": false,
+    "adaptive_policy_hash": null,
+    "decision_policy": "maximum_probability_best",
+    "replay_backend": "c11_replay_engine",
+    "static_surface_objective": -3584.9931335742363,
+    "transition_family": "fixed",
+    "warmup_backend": "python_static_surface"
+  },
+  "candidate_a_config_hash": "a10b3c0b5b88e7d5a6b3600bd476730319c266a8cbc03ab20a7ed42090215908",
+  "candidate_count": 1428,
+  "candidate_grid_hash": "ab75faaa918bb3d13943ab87cd5429b8737a0fbe7d620d05cdf363e3d6467d1c",
+  "checkpoint_format_version": "1.0",
+  "checkpoint_magic": "BOLRCP01",
+  "checkpoint_schedule": {
+    "at_end": true,
+    "at_pending_day": false,
+    "every_n_days": 25,
+    "force_restart_after_day": null,
+    "force_restart_pending_day": null
+  },
+  "command_line": [
+    "scripts/run_native_candidate_a_replay.py",
+    "--data",
+    "data/YM_full.parquet",
+    "--output-dir",
+    "outputs/l5_candidate_a_native_fixed_full",
+    "--run-name",
+    "candidate_a_native_fixed_full_v1",
+    "--transition",
+    "fixed",
+    "--decision-policy",
+    "probability_best",
+    "--mc-samples",
+    "512",
+    "--mc-chunk-size",
+    "64",
+    "--top-k",
+    "10",
+    "--rng-seed",
+    "20260720",
+    "--rng-stream",
+    "1",
+    "--checkpoint-every-n-days",
+    "25"
+  ],
+  "data_fingerprint": {
+    "end_date": "2024-10-08",
+    "fingerprint": "7b808b8b65b5fc54ed7711d213bf52d7e96ebc16f9ebb440fcccf99a03bfdf16",
+    "n_dates": 954,
+    "n_rows": 1362312,
+    "path": "/home/tiaan/Projects/BOLR/data/YM_full.parquet",
+    "size_bytes": 60176258,
+    "start_date": "2021-01-29"
+  },
+  "data_path": "/home/tiaan/Projects/BOLR/data/YM_full.parquet",
+  "date_range": {
+    "replay_day_count": 450,
+    "replay_end": "2024-10-08",
+    "replay_start": "2023-01-12",
+    "warmup_end": "2023-01-11",
+    "warmup_start": "2021-01-29"
+  },
+  "decision_config_hash": "6bb452b1ee931c4276e3da4ddbef76f838b93936cc623d0e38eb0bc0538021f2",
+  "git_commit": "722e6b0616c0982b154dd9062710878b81367cdb",
+  "memory": {
+    "current_rss_kb": 435500,
+    "max_rss_kb": 512576
+  },
+  "model_schema_hash": 8224641431057211543,
+  "monte_carlo_config_hash": "e24b0c2676e755d21872dc385ff8034e36969bc88d9a5856a2f62ff335d58fb7",
+  "rng_seed": 20260720,
+  "rng_stream": 1,
+  "run_name": "candidate_a_native_fixed_full_v1",
+  "state_dimension": 47,
+  "state_layout_hash": 8224641431057211543,
+  "timestamp": "2026-07-20T15:19:59.248172+00:00",
+  "timing": {
+    "begin_day_seconds": 323.10127624543384,
+    "checkpoint_write_seconds": 0.2944259330397472,
+    "data_preparation_seconds": 9.111697754007764,
+    "finish_day_seconds": 53.462206918164156,
+    "total_run_seconds": 444.006591967016,
+    "warmup_seconds": 57.384879252989776
+  },
+  "transition_config_hash": "7e45be53f52e8bfc38c89a8f2409eea7d972645051af450c256b552030698add",
+  "warmup": {
+    "initial_covariance_trace": 47.0,
+    "initial_posterior_hash": "67428829aab403a996bc904464cec420f502f834b4b1b586aadf9d55dd464527",
+    "state_dimension": 47,
+    "static_surface_converged": true,
+    "static_surface_iterations": 9,
+    "warmup_backend": "python_static_surface",
+    "warmup_dates": [
+      "2021-01-29",
+      "2023-01-11"
+    ],
+    "warmup_day_count": 504,
+    "warmup_elapsed_seconds": 57.384879252989776
+  }
+}

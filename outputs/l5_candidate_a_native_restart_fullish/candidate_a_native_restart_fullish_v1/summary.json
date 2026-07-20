@@ -1,0 +1,39 @@
+{
+  "checkpoint_count": 20,
+  "day_count": 450,
+  "decision_policy": "maximum_probability_best",
+  "forced_pending_restart_passed": true,
+  "forced_ready_restart_passed": true,
+  "laplace_failure_count": 0,
+  "max_day_ms": 918.9703279989772,
+  "mean_day_ms": 824.6598821520133,
+  "mean_laplace_iterations": 2.0,
+  "mean_realised_rank": 766.4711111111111,
+  "mean_regret": 141.05153333333334,
+  "mean_selected_value": 1.5592666666666664,
+  "mean_selected_value_pnl": 1.5592666666666664,
+  "median_realised_rank": 1101.0,
+  "median_regret": 110.95500000000001,
+  "median_selected_value": -27.0,
+  "median_selected_value_pnl": -27.0,
+  "memory": {
+    "current_rss_kb": 439360,
+    "max_rss_kb": 516348
+  },
+  "positive_day_rate": 0.4222222222222222,
+  "timing": {
+    "begin_day_seconds": 317.9563237212715,
+    "checkpoint_write_seconds": 0.33409263606881723,
+    "data_preparation_seconds": 8.953618155966979,
+    "finish_day_seconds": 52.55755668738857,
+    "total_run_seconds": 430.59732098900713,
+    "warmup_seconds": 50.1522241619532
+  },
+  "top_10_hit_rate": 0.23333333333333334,
+  "top_1_hit_rate": 0.03111111111111111,
+  "top_5_hit_rate": 0.16444444444444445,
+  "total_elapsed_seconds": 430.59732098900713,
+  "total_selected_value": 701.6699999999998,
+  "total_selected_value_pnl": 701.6699999999998,
+  "transition_family": "fixed"
+}
