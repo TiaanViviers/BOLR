@@ -172,3 +172,9 @@ __marimo__/
 
 #### Project-specific-ignore ####
 data/
+
+# Native durable replay checkpoints (BOLRCP01 binaries)
+*.bolrcp
+
+# Local L5+ historical run directories (regenerable artifacts)
+outputs/l5_*/
