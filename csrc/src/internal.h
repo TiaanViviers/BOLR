@@ -129,7 +129,29 @@ struct bolr_replay_engine {
     bolr_gaussian_state *pending_predictive;
     bolr_rng *rng;
     bolr_replay_phase phase;
+    bolr_index completed_day_index;
     bolr_decision pending_decision;
+    bolr_real *pending_context;
+    bolr_index pending_context_length;
+    bolr_replay_ranking_config pending_ranking;
+    bolr_index *pending_top_k;
+    bolr_index pending_top_k_count;
+    bolr_decision_policy_config pending_decision_config;
+    uint64_t pending_decision_id;
+    bolr_real *pending_score_mean;
+    bolr_real *pending_score_variance;
+    bolr_index pending_candidate_count;
+    bolr_real *pending_probability_best;
+    bolr_real *pending_expected_rank;
+    bolr_real *pending_rank_stddev;
+    bolr_real *pending_probability_top_k;
+    bolr_index pending_rank_top_k;
+    bolr_monte_carlo_ranking_diagnostics pending_rank_diagnostics;
+    bolr_index pending_region_count;
+    bolr_index *pending_consensus_indices;
+    bolr_index pending_consensus_count;
+    bolr_region_summary *pending_region_summaries;
+    uint64_t graph_hash;
 };
 
 struct bolr_replay_checkpoint {
@@ -145,7 +167,29 @@ struct bolr_replay_checkpoint {
     bolr_checkpoint_state *pending_predictive_checkpoint;
     bolr_rng_checkpoint *rng_checkpoint;
     bolr_replay_phase phase;
+    bolr_index completed_day_index;
     bolr_decision pending_decision;
+    bolr_real *pending_context;
+    bolr_index pending_context_length;
+    bolr_replay_ranking_config pending_ranking;
+    bolr_index *pending_top_k;
+    bolr_index pending_top_k_count;
+    bolr_decision_policy_config pending_decision_config;
+    uint64_t pending_decision_id;
+    bolr_real *pending_score_mean;
+    bolr_real *pending_score_variance;
+    bolr_index pending_candidate_count;
+    bolr_real *pending_probability_best;
+    bolr_real *pending_expected_rank;
+    bolr_real *pending_rank_stddev;
+    bolr_real *pending_probability_top_k;
+    bolr_index pending_rank_top_k;
+    bolr_monte_carlo_ranking_diagnostics pending_rank_diagnostics;
+    bolr_index pending_region_count;
+    bolr_index *pending_consensus_indices;
+    bolr_index pending_consensus_count;
+    bolr_region_summary *pending_region_summaries;
+    uint64_t graph_hash;
 };
 
 struct bolr_grid_graph {

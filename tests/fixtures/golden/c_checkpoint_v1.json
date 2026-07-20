@@ -1,0 +1,301 @@
+{
+  "abi_version": {
+    "major": 1,
+    "minor": 8,
+    "patch": 0
+  },
+  "checksum": "ieee-crc32",
+  "compression": "none",
+  "endianness": "little",
+  "fixture_seed": {
+    "rng_seed": 7,
+    "rng_stream": 2
+  },
+  "format_version": {
+    "major": 1,
+    "minor": 0
+  },
+  "notes": "Committed golden fixtures for BOLR checkpoint format v1. Do not regenerate casually.",
+  "pending": {
+    "abi_major": 1,
+    "abi_minor": 8,
+    "checkpoint_id": 9354609568656401157,
+    "completed_day_index": 0,
+    "decision_identifier": 1,
+    "directory_entry_size": 44,
+    "expected_restored_phase": 2,
+    "file_size": 1595,
+    "flags": 46,
+    "format_major": 1,
+    "format_minor": 0,
+    "grid_hash": 0,
+    "header_crc32": 2448108755,
+    "header_size": 180,
+    "model_schema_hash": 17001463043806383991,
+    "payload_crc32": 1054954316,
+    "phase": 2,
+    "section_count": 13,
+    "sections": [
+      {
+        "crc32": 2061248539,
+        "element_count": 1,
+        "flags": 1,
+        "length": 104,
+        "name": "REPLAY_METADATA",
+        "offset": 752,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 1
+      },
+      {
+        "crc32": 2509570744,
+        "element_count": 1,
+        "flags": 1,
+        "length": 88,
+        "name": "GAUSSIAN_POSTERIOR",
+        "offset": 856,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 2
+      },
+      {
+        "crc32": 310260676,
+        "element_count": 1,
+        "flags": 1,
+        "length": 84,
+        "name": "RNG_STATE",
+        "offset": 944,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 6
+      },
+      {
+        "crc32": 4292895139,
+        "element_count": 1,
+        "flags": 1,
+        "length": 20,
+        "name": "DECISION_CONFIG",
+        "offset": 1028,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 8
+      },
+      {
+        "crc32": 1191648935,
+        "element_count": 1,
+        "flags": 1,
+        "length": 44,
+        "name": "MONTE_CARLO_CONFIG",
+        "offset": 1048,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 9
+      },
+      {
+        "crc32": 3454816933,
+        "element_count": 1,
+        "flags": 1,
+        "length": 36,
+        "name": "PENDING_DAY_METADATA",
+        "offset": 1092,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 10
+      },
+      {
+        "crc32": 558161692,
+        "element_count": 0,
+        "flags": 1,
+        "length": 4,
+        "name": "PENDING_SCORE_CONTEXT",
+        "offset": 1128,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 11
+      },
+      {
+        "crc32": 1825251916,
+        "element_count": 1,
+        "flags": 1,
+        "length": 88,
+        "name": "PENDING_PREDICTIVE_GAUSSIAN",
+        "offset": 1132,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 12
+      },
+      {
+        "crc32": 4080633300,
+        "element_count": 3,
+        "flags": 1,
+        "length": 56,
+        "name": "PENDING_POSTERIOR_PREDICTION",
+        "offset": 1220,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 13
+      },
+      {
+        "crc32": 1701027093,
+        "element_count": 3,
+        "flags": 1,
+        "length": 152,
+        "name": "PENDING_RANK_SUMMARY",
+        "offset": 1276,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 14
+      },
+      {
+        "crc32": 4181997244,
+        "element_count": 1,
+        "flags": 1,
+        "length": 80,
+        "name": "PENDING_DECISION",
+        "offset": 1428,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 16
+      },
+      {
+        "crc32": 2369607798,
+        "element_count": 1,
+        "flags": 2,
+        "length": 35,
+        "name": "PROVENANCE",
+        "offset": 1508,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 17
+      },
+      {
+        "crc32": 2867959276,
+        "element_count": 1,
+        "flags": 1,
+        "length": 52,
+        "name": "TRANSITION_CONFIG",
+        "offset": 1543,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 18
+      }
+    ],
+    "selected_index": 1,
+    "size_report": {
+      "candidate_count": 3,
+      "directory_bytes": 572,
+      "header_bytes": 180,
+      "payload_bytes": 843,
+      "state_dimension": 2,
+      "total_bytes": 1595
+    },
+    "state_layout_hash": 17001463043806383991
+  },
+  "ready": {
+    "abi_major": 1,
+    "abi_minor": 8,
+    "checkpoint_id": 9354609568656401157,
+    "completed_day_index": 0,
+    "directory_entry_size": 44,
+    "expected_restored_phase": 1,
+    "file_size": 899,
+    "flags": 2,
+    "format_major": 1,
+    "format_minor": 0,
+    "grid_hash": 0,
+    "header_crc32": 2957238843,
+    "header_size": 180,
+    "model_schema_hash": 17001463043806383991,
+    "payload_crc32": 3931072581,
+    "phase": 1,
+    "section_count": 7,
+    "sections": [
+      {
+        "crc32": 4191033792,
+        "element_count": 1,
+        "flags": 1,
+        "length": 104,
+        "name": "REPLAY_METADATA",
+        "offset": 488,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 1
+      },
+      {
+        "crc32": 2509570744,
+        "element_count": 1,
+        "flags": 1,
+        "length": 88,
+        "name": "GAUSSIAN_POSTERIOR",
+        "offset": 592,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 2
+      },
+      {
+        "crc32": 1392288713,
+        "element_count": 1,
+        "flags": 1,
+        "length": 84,
+        "name": "RNG_STATE",
+        "offset": 680,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 6
+      },
+      {
+        "crc32": 265657229,
+        "element_count": 1,
+        "flags": 1,
+        "length": 20,
+        "name": "DECISION_CONFIG",
+        "offset": 764,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 8
+      },
+      {
+        "crc32": 2154854377,
+        "element_count": 1,
+        "flags": 1,
+        "length": 28,
+        "name": "MONTE_CARLO_CONFIG",
+        "offset": 784,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 9
+      },
+      {
+        "crc32": 2369607798,
+        "element_count": 1,
+        "flags": 2,
+        "length": 35,
+        "name": "PROVENANCE",
+        "offset": 812,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 17
+      },
+      {
+        "crc32": 2867959276,
+        "element_count": 1,
+        "flags": 1,
+        "length": 52,
+        "name": "TRANSITION_CONFIG",
+        "offset": 847,
+        "schema_major": 1,
+        "schema_minor": 0,
+        "type": 18
+      }
+    ],
+    "size_report": {
+      "candidate_count": 0,
+      "directory_bytes": 308,
+      "header_bytes": 180,
+      "payload_bytes": 411,
+      "state_dimension": 2,
+      "total_bytes": 899
+    },
+    "state_layout_hash": 17001463043806383991
+  }
+}

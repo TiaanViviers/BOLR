@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -365,6 +366,71 @@ class ReplayFinishDiagnosticsStruct(ctypes.Structure):
         ("posterior_trace", ctypes.c_double),
         ("adaptive_applied", ctypes.c_int32),
     ]
+
+
+class CheckpointLimitsStruct(ctypes.Structure):
+    _fields_ = [
+        ("maximum_checkpoint_bytes", ctypes.c_uint64),
+        ("maximum_section_count", ctypes.c_uint64),
+        ("maximum_candidates", ctypes.c_uint64),
+        ("maximum_state_dimension", ctypes.c_uint64),
+        ("maximum_blocks", ctypes.c_uint64),
+        ("maximum_run_length", ctypes.c_uint64),
+        ("maximum_context_values", ctypes.c_uint64),
+    ]
+
+
+class ReplayRestoreContextStruct(ctypes.Structure):
+    _fields_ = [
+        ("adaptive_policy", ctypes.c_void_p),
+        ("expected_model_schema_hash", ctypes.c_uint64),
+        ("expected_state_layout_hash", ctypes.c_uint64),
+        ("expected_grid_hash", ctypes.c_uint64),
+        ("expected_replay_config_hash", ctypes.c_uint64),
+        ("expected_adaptive_policy_hash", ctypes.c_uint64),
+        ("limits", CheckpointLimitsStruct),
+    ]
+
+
+class CheckpointFileOptionsStruct(ctypes.Structure):
+    _fields_ = [
+        ("fsync_file", ctypes.c_int),
+        ("fsync_directory", ctypes.c_int),
+        ("file_mode", ctypes.c_uint32),
+        ("replace_existing", ctypes.c_int),
+    ]
+
+
+class CheckpointSizeReportStruct(ctypes.Structure):
+    _fields_ = [
+        ("total_bytes", ctypes.c_size_t),
+        ("header_bytes", ctypes.c_size_t),
+        ("directory_bytes", ctypes.c_size_t),
+        ("payload_bytes", ctypes.c_size_t),
+        ("candidate_count", ctypes.c_int64),
+        ("state_dimension", ctypes.c_int64),
+    ]
+
+
+@dataclass(frozen=True)
+class CheckpointSizeReport:
+    total_bytes: int
+    header_bytes: int
+    directory_bytes: int
+    payload_bytes: int
+    candidate_count: int
+    state_dimension: int
+
+    @classmethod
+    def from_c(cls, report: CheckpointSizeReportStruct) -> "CheckpointSizeReport":
+        return cls(
+            int(report.total_bytes),
+            int(report.header_bytes),
+            int(report.directory_bytes),
+            int(report.payload_bytes),
+            int(report.candidate_count),
+            int(report.state_dimension),
+        )
 
 
 class PairwiseProbabilityStruct(ctypes.Structure):
@@ -1542,6 +1608,24 @@ class CLibrary:
         self.lib.bolr_replay_checkpoint_phase.restype = ctypes.c_int32
         self.lib.bolr_replay_checkpoint_pending_selected_index.argtypes = [ctypes.c_void_p]
         self.lib.bolr_replay_checkpoint_pending_selected_index.restype = ctypes.c_int64
+
+        self.lib.bolr_checkpoint_limits_default.restype = CheckpointLimitsStruct
+        self.lib.bolr_replay_checkpoint_encoded_size.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_size_t)]
+        self.lib.bolr_replay_checkpoint_encoded_size.restype = ctypes.c_int32
+        self.lib.bolr_replay_checkpoint_encode.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t)]
+        self.lib.bolr_replay_checkpoint_encode.restype = ctypes.c_int32
+        self.lib.bolr_replay_checkpoint_encode_buffer.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
+        self.lib.bolr_replay_checkpoint_encode_buffer.restype = ctypes.c_int32
+        self.lib.bolr_replay_checkpoint_decode.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(ReplayRestoreContextStruct), ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_replay_checkpoint_decode.restype = ctypes.c_int32
+        self.lib.bolr_replay_checkpoint_size_report.argtypes = [ctypes.c_void_p, ctypes.POINTER(CheckpointSizeReportStruct)]
+        self.lib.bolr_replay_checkpoint_size_report.restype = ctypes.c_int32
+        self.lib.bolr_checkpoint_file_options_default.restype = CheckpointFileOptionsStruct
+        self.lib.bolr_replay_checkpoint_write_atomic.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(CheckpointFileOptionsStruct)]
+        self.lib.bolr_replay_checkpoint_write_atomic.restype = ctypes.c_int32
+        self.lib.bolr_replay_checkpoint_read_file.argtypes = [ctypes.c_char_p, ctypes.POINTER(ReplayRestoreContextStruct), ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        self.lib.bolr_replay_checkpoint_read_file.restype = ctypes.c_int32
+
         self.lib.bolr_realized_best_distribution.argtypes = [ConstVectorView, ctypes.c_double, VectorView]
         self.lib.bolr_realized_best_distribution.restype = ctypes.c_int32
         self.lib.bolr_realized_top_k_indicator.argtypes = [ConstVectorView, ctypes.c_int64, VectorView]
@@ -1553,8 +1637,8 @@ class CLibrary:
         self.lib.bolr_region_coverage.argtypes = [ctypes.POINTER(ctypes.c_int64), ctypes.c_int64, ConstVectorView, ctypes.c_double, ctypes.POINTER(ctypes.c_int32)]
         self.lib.bolr_region_coverage.restype = ctypes.c_int32
 
-        if self.lib.bolr_abi_version_minor() < 7:
-            raise CBackendError("BOLR C backend is missing Phase L4B2.2 symbols.")
+        if self.lib.bolr_abi_version_minor() < 8:
+            raise CBackendError("BOLR C backend is missing Phase L4B2.3 symbols.")
 
     @staticmethod
     def const_vector(array: np.ndarray) -> ConstVectorView:
@@ -2709,6 +2793,67 @@ class CReplayCheckpoint(CHandle):
         return int(self.library.lib.bolr_replay_checkpoint_pending_selected_index(self._require_open()))
 
 
+def make_restore_context(
+    model: "CModelArtifacts",
+    *,
+    adaptive_policy: "CAdaptivePolicy | None" = None,
+    grid_hash: int = 0,
+    replay_config_hash: int = 0,
+    limits: CheckpointLimitsStruct | None = None,
+    library: CLibrary | None = None,
+) -> ReplayRestoreContextStruct:
+    lib = CLibrary() if library is None else library
+    if limits is None:
+        limits = lib.lib.bolr_checkpoint_limits_default()
+    adaptive_ptr = None
+    adaptive_hash = 0
+    if adaptive_policy is not None:
+        adaptive_ptr = adaptive_policy._require_open()
+        adaptive_hash = int(lib.lib.bolr_adaptive_policy_configuration_hash(adaptive_ptr))
+    return ReplayRestoreContextStruct(
+        adaptive_ptr,
+        int(model.model_schema_hash),
+        int(model.state_layout_hash),
+        int(grid_hash),
+        int(replay_config_hash),
+        adaptive_hash,
+        limits,
+    )
+
+
+def _coerce_restore_context(
+    restore_context: ReplayRestoreContextStruct | dict[str, Any] | "CModelArtifacts",
+    *,
+    adaptive_policy: "CAdaptivePolicy | None" = None,
+    library: CLibrary | None = None,
+) -> ReplayRestoreContextStruct:
+    if isinstance(restore_context, ReplayRestoreContextStruct):
+        if adaptive_policy is None:
+            return restore_context
+        return ReplayRestoreContextStruct(
+            adaptive_policy._require_open(),
+            restore_context.expected_model_schema_hash,
+            restore_context.expected_state_layout_hash,
+            restore_context.expected_grid_hash,
+            restore_context.expected_replay_config_hash,
+            int((CLibrary() if library is None else library).lib.bolr_adaptive_policy_configuration_hash(adaptive_policy._require_open())),
+            restore_context.limits,
+        )
+    if isinstance(restore_context, CModelArtifacts):
+        return make_restore_context(restore_context, adaptive_policy=adaptive_policy, library=library)
+    if isinstance(restore_context, dict):
+        model = restore_context["model"]
+        return make_restore_context(
+            model,
+            adaptive_policy=restore_context.get("adaptive_policy", adaptive_policy),
+            grid_hash=int(restore_context.get("grid_hash", 0)),
+            replay_config_hash=int(restore_context.get("replay_config_hash", 0)),
+            limits=restore_context.get("limits"),
+            library=library,
+        )
+    raise TypeError(f"Unsupported restore context type: {type(restore_context).__name__}")
+
+
 class CReplayEngine(CHandle):
     def __init__(self, handle: ctypes.c_void_p, *, library: CLibrary | None = None) -> None:
         self.library = CLibrary() if library is None else library
@@ -2830,6 +2975,86 @@ class CReplayEngine(CHandle):
         handle = ctypes.c_void_p()
         status_ok(self.library.lib, self.library.lib.bolr_replay_engine_export_checkpoint(self._require_open(), None, ctypes.byref(handle)), operation="bolr_replay_engine_export_checkpoint")
         return CReplayCheckpoint(handle, library=self.library)
+
+    def encode_checkpoint(self) -> bytes:
+        size = ctypes.c_size_t()
+        status_ok(
+            self.library.lib,
+            self.library.lib.bolr_replay_checkpoint_encoded_size(self._require_open(), ctypes.byref(size)),
+            operation="bolr_replay_checkpoint_encoded_size",
+        )
+        buffer = (ctypes.c_ubyte * size.value)()
+        written = ctypes.c_size_t()
+        status_ok(
+            self.library.lib,
+            self.library.lib.bolr_replay_checkpoint_encode(self._require_open(), ctypes.byref(buffer), size.value, ctypes.byref(written)),
+            operation="bolr_replay_checkpoint_encode",
+        )
+        return bytes(buffer[: written.value])
+
+    def checkpoint_size_report(self) -> CheckpointSizeReport:
+        report = CheckpointSizeReportStruct()
+        status_ok(
+            self.library.lib,
+            self.library.lib.bolr_replay_checkpoint_size_report(self._require_open(), ctypes.byref(report)),
+            operation="bolr_replay_checkpoint_size_report",
+        )
+        return CheckpointSizeReport.from_c(report)
+
+    @classmethod
+    def decode_checkpoint(
+        cls,
+        payload: bytes,
+        restore_context: ReplayRestoreContextStruct | dict[str, Any] | "CModelArtifacts",
+        *,
+        library: CLibrary | None = None,
+        adaptive_policy: "CAdaptivePolicy | None" = None,
+    ) -> "CReplayEngine":
+        lib = CLibrary() if library is None else library
+        context = _coerce_restore_context(restore_context, adaptive_policy=adaptive_policy, library=lib)
+        handle = ctypes.c_void_p()
+        raw = (ctypes.c_ubyte * len(payload)).from_buffer_copy(payload)
+        status_ok(
+            lib.lib,
+            lib.lib.bolr_replay_checkpoint_decode(ctypes.byref(raw), len(payload), ctypes.byref(context), None, ctypes.byref(handle)),
+            operation="bolr_replay_checkpoint_decode",
+        )
+        return cls(handle, library=lib)
+
+    def write_checkpoint(self, path: str | Path, *, durable: bool = True, replace_existing: bool = True) -> None:
+        defaults = self.library.lib.bolr_checkpoint_file_options_default()
+        options = CheckpointFileOptionsStruct(
+            1 if durable else 0,
+            1 if durable else 0,
+            defaults.file_mode,
+            1 if replace_existing else 0,
+        )
+        path_bytes = str(path).encode("utf-8")
+        status_ok(
+            self.library.lib,
+            self.library.lib.bolr_replay_checkpoint_write_atomic(self._require_open(), path_bytes, ctypes.byref(options)),
+            operation="bolr_replay_checkpoint_write_atomic",
+        )
+
+    @classmethod
+    def read_checkpoint(
+        cls,
+        path: str | Path,
+        restore_context: ReplayRestoreContextStruct | dict[str, Any] | "CModelArtifacts",
+        *,
+        library: CLibrary | None = None,
+        adaptive_policy: "CAdaptivePolicy | None" = None,
+    ) -> "CReplayEngine":
+        lib = CLibrary() if library is None else library
+        context = _coerce_restore_context(restore_context, adaptive_policy=adaptive_policy, library=lib)
+        handle = ctypes.c_void_p()
+        path_bytes = str(path).encode("utf-8")
+        status_ok(
+            lib.lib,
+            lib.lib.bolr_replay_checkpoint_read_file(path_bytes, ctypes.byref(context), None, ctypes.byref(handle)),
+            operation="bolr_replay_checkpoint_read_file",
+        )
+        return cls(handle, library=lib)
 
 
 class CModelArtifacts(CHandle):

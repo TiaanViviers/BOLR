@@ -69,6 +69,11 @@ SRC_FILES := \
   $(SRC_DIR)/gaussian_prediction.c \
   $(SRC_DIR)/score_sampling.c \
   $(SRC_DIR)/replay.c \
+  $(SRC_DIR)/endian.c \
+  $(SRC_DIR)/crc32.c \
+  $(SRC_DIR)/checkpoint_sections.c \
+  $(SRC_DIR)/checkpoint_codec.c \
+  $(SRC_DIR)/checkpoint_file.c \
   $(SRC_DIR)/posterior_objective.c \
   $(SRC_DIR)/newton.c \
   $(SRC_DIR)/line_search.c \
@@ -112,6 +117,12 @@ TEST_SRC := \
   $(TEST_DIR)/test_sampling.c \
   $(TEST_DIR)/test_rank_accumulator.c \
   $(TEST_DIR)/test_replay.c \
+  $(TEST_DIR)/test_checkpoint_header.c \
+  $(TEST_DIR)/test_checkpoint_sections.c \
+  $(TEST_DIR)/test_checkpoint_codec.c \
+  $(TEST_DIR)/test_checkpoint_corruption.c \
+  $(TEST_DIR)/test_checkpoint_file.c \
+  $(TEST_DIR)/test_checkpoint_restart.c \
   $(TEST_DIR)/test_posterior_objective.c \
   $(TEST_DIR)/test_newton.c \
   $(TEST_DIR)/test_laplace.c \

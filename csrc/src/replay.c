@@ -1,6 +1,7 @@
 #include "bolr/replay.h"
 
 #include "bolr/version.h"
+#include "checkpoint_internal.h"
 #include "internal.h"
 
 #include <stddef.h>
@@ -35,6 +36,280 @@ static bolr_status copy_real_matrix_row_major(const bolr_allocator *allocator, b
     if (copy == NULL) return BOLR_ALLOCATION_FAILED;
     for (r = 0; r < source.rows; ++r) for (c = 0; c < source.cols; ++c) copy[r * source.cols + c] = source.data[r * source.row_stride + c * source.col_stride];
     *out = copy;
+    return BOLR_OK;
+}
+
+static bolr_status copy_index_array(const bolr_allocator *allocator, const bolr_index *source, bolr_index count, bolr_index **out) {
+    size_t bytes;
+    bolr_index *copy;
+    if (count <= 0) {
+        *out = NULL;
+        return BOLR_OK;
+    }
+    if (source == NULL) return BOLR_INVALID_ARGUMENT;
+    if (bolr_checked_size_mul((size_t) count, sizeof(bolr_index), &bytes) != BOLR_OK) return BOLR_DIMENSION_OVERFLOW;
+    copy = (bolr_index *) bolr_allocator_malloc(allocator, bytes);
+    if (copy == NULL) return BOLR_ALLOCATION_FAILED;
+    memcpy(copy, source, bytes);
+    *out = copy;
+    return BOLR_OK;
+}
+
+static uint64_t fnv1a_update(uint64_t state, const unsigned char *data, size_t size) {
+    size_t i;
+    for (i = 0U; i < size; ++i) {
+        state ^= (uint64_t) data[i];
+        state *= 1099511628211ULL;
+    }
+    return state;
+}
+
+static uint64_t hash_pending_decision_id(const bolr_decision *decision, const bolr_decision_policy_config *config, uint64_t graph_hash) {
+    uint64_t h = 14695981039346656037ULL;
+    if (decision != NULL) h = fnv1a_update(h, (const unsigned char *) decision, sizeof(*decision));
+    if (config != NULL) h = fnv1a_update(h, (const unsigned char *) config, sizeof(*config));
+    h = fnv1a_update(h, (const unsigned char *) &graph_hash, sizeof(graph_hash));
+    return h;
+}
+
+static void destroy_engine_pending_arrays(struct bolr_replay_engine *engine) {
+    if (engine == NULL) return;
+    bolr_allocator_free(engine->allocator, engine->pending_context);
+    bolr_allocator_free(engine->allocator, engine->pending_top_k);
+    bolr_allocator_free(engine->allocator, engine->pending_score_mean);
+    bolr_allocator_free(engine->allocator, engine->pending_score_variance);
+    bolr_allocator_free(engine->allocator, engine->pending_probability_best);
+    bolr_allocator_free(engine->allocator, engine->pending_expected_rank);
+    bolr_allocator_free(engine->allocator, engine->pending_rank_stddev);
+    bolr_allocator_free(engine->allocator, engine->pending_probability_top_k);
+    bolr_allocator_free(engine->allocator, engine->pending_consensus_indices);
+    bolr_allocator_free(engine->allocator, engine->pending_region_summaries);
+    engine->pending_context = NULL;
+    engine->pending_top_k = NULL;
+    engine->pending_score_mean = NULL;
+    engine->pending_score_variance = NULL;
+    engine->pending_probability_best = NULL;
+    engine->pending_expected_rank = NULL;
+    engine->pending_rank_stddev = NULL;
+    engine->pending_probability_top_k = NULL;
+    engine->pending_consensus_indices = NULL;
+    engine->pending_region_summaries = NULL;
+    engine->pending_context_length = 0;
+    engine->pending_top_k_count = 0;
+    engine->pending_candidate_count = 0;
+    engine->pending_rank_top_k = 0;
+    engine->pending_region_count = 0;
+    engine->pending_consensus_count = 0;
+    memset(&engine->pending_rank_diagnostics, 0, sizeof(engine->pending_rank_diagnostics));
+}
+
+static void destroy_checkpoint_pending_arrays(struct bolr_replay_checkpoint *checkpoint) {
+    if (checkpoint == NULL) return;
+    bolr_allocator_free(checkpoint->allocator, checkpoint->pending_context);
+    bolr_allocator_free(checkpoint->allocator, checkpoint->pending_top_k);
+    bolr_allocator_free(checkpoint->allocator, checkpoint->pending_score_mean);
+    bolr_allocator_free(checkpoint->allocator, checkpoint->pending_score_variance);
+    bolr_allocator_free(checkpoint->allocator, checkpoint->pending_probability_best);
+    bolr_allocator_free(checkpoint->allocator, checkpoint->pending_expected_rank);
+    bolr_allocator_free(checkpoint->allocator, checkpoint->pending_rank_stddev);
+    bolr_allocator_free(checkpoint->allocator, checkpoint->pending_probability_top_k);
+    bolr_allocator_free(checkpoint->allocator, checkpoint->pending_consensus_indices);
+    bolr_allocator_free(checkpoint->allocator, checkpoint->pending_region_summaries);
+    checkpoint->pending_context = NULL;
+    checkpoint->pending_top_k = NULL;
+    checkpoint->pending_score_mean = NULL;
+    checkpoint->pending_score_variance = NULL;
+    checkpoint->pending_probability_best = NULL;
+    checkpoint->pending_expected_rank = NULL;
+    checkpoint->pending_rank_stddev = NULL;
+    checkpoint->pending_probability_top_k = NULL;
+    checkpoint->pending_consensus_indices = NULL;
+    checkpoint->pending_region_summaries = NULL;
+}
+
+static bolr_status copy_real_vector_owned(const bolr_allocator *allocator, const bolr_real *source, bolr_index count, bolr_real **out) {
+    size_t bytes;
+    bolr_real *copy;
+    if (count <= 0) {
+        *out = NULL;
+        return BOLR_OK;
+    }
+    if (source == NULL) return BOLR_INVALID_ARGUMENT;
+    if (bolr_checked_size_mul((size_t) count, sizeof(bolr_real), &bytes) != BOLR_OK) return BOLR_DIMENSION_OVERFLOW;
+    copy = (bolr_real *) bolr_allocator_malloc(allocator, bytes);
+    if (copy == NULL) return BOLR_ALLOCATION_FAILED;
+    memcpy(copy, source, bytes);
+    *out = copy;
+    return BOLR_OK;
+}
+
+static bolr_status capture_prediction_pending(
+    struct bolr_replay_engine *engine,
+    bolr_posterior_prediction *prediction,
+    const bolr_index *top_k_values,
+    bolr_index top_k_count,
+    const bolr_monte_carlo_ranking_diagnostics *rank_diag
+) {
+    struct bolr_posterior_prediction *pred = (struct bolr_posterior_prediction *) prediction;
+    bolr_index n = pred->candidate_count;
+    bolr_index i;
+    bolr_status status;
+    destroy_engine_pending_arrays(engine);
+    engine->pending_candidate_count = n;
+    engine->pending_rank_diagnostics = *rank_diag;
+    status = copy_real_vector_owned(engine->allocator, pred->score_mean, n, &engine->pending_score_mean);
+    if (status != BOLR_OK) return status;
+    status = copy_real_vector_owned(engine->allocator, pred->score_variance, n, &engine->pending_score_variance);
+    if (status != BOLR_OK) return status;
+    if (pred->probability_best != NULL) {
+        status = copy_real_vector_owned(engine->allocator, pred->probability_best, n, &engine->pending_probability_best);
+        if (status != BOLR_OK) return status;
+    }
+    if (pred->expected_rank != NULL) {
+        status = copy_real_vector_owned(engine->allocator, pred->expected_rank, n, &engine->pending_expected_rank);
+        if (status != BOLR_OK) return status;
+    }
+    if (pred->rank_stddev != NULL) {
+        status = copy_real_vector_owned(engine->allocator, pred->rank_stddev, n, &engine->pending_rank_stddev);
+        if (status != BOLR_OK) return status;
+    }
+    if ((top_k_count > 0) && (top_k_values != NULL) && (pred->probability_top_k_values != NULL) && (pred->probability_top_k_keys != NULL)) {
+        engine->pending_rank_top_k = top_k_values[0];
+        for (i = 0; i < pred->probability_top_k_count; ++i) {
+            if (pred->probability_top_k_keys[i] == engine->pending_rank_top_k) {
+                status = copy_real_vector_owned(engine->allocator, pred->probability_top_k_values[i], n, &engine->pending_probability_top_k);
+                if (status != BOLR_OK) return status;
+                break;
+            }
+        }
+    }
+    return BOLR_OK;
+}
+
+static bolr_status capture_region_pending(struct bolr_replay_engine *engine, bolr_region_set *regions) {
+    struct bolr_region_set *rs = (struct bolr_region_set *) regions;
+    bolr_index i;
+    bolr_allocator_free(engine->allocator, engine->pending_consensus_indices);
+    bolr_allocator_free(engine->allocator, engine->pending_region_summaries);
+    engine->pending_consensus_indices = NULL;
+    engine->pending_region_summaries = NULL;
+    engine->pending_region_count = 0;
+    engine->pending_consensus_count = 0;
+    if (rs == NULL) return BOLR_OK;
+    engine->pending_region_count = rs->region_count;
+    engine->pending_consensus_count = rs->consensus_count;
+    if (rs->consensus_count > 0) {
+        bolr_status status = copy_index_array(engine->allocator, rs->consensus_indices, rs->consensus_count, &engine->pending_consensus_indices);
+        if (status != BOLR_OK) return status;
+    }
+    if (rs->region_count > 0) {
+        engine->pending_region_summaries = (bolr_region_summary *) bolr_allocator_malloc(engine->allocator, (size_t) rs->region_count * sizeof(bolr_region_summary));
+        if (engine->pending_region_summaries == NULL) return BOLR_ALLOCATION_FAILED;
+        for (i = 0; i < rs->region_count; ++i) engine->pending_region_summaries[i] = rs->summaries[i];
+    }
+    return BOLR_OK;
+}
+
+static bolr_status copy_engine_pending_to_checkpoint(const struct bolr_replay_engine *engine, struct bolr_replay_checkpoint *checkpoint) {
+    bolr_status status;
+    destroy_checkpoint_pending_arrays(checkpoint);
+    checkpoint->completed_day_index = engine->completed_day_index;
+    checkpoint->pending_context_length = engine->pending_context_length;
+    checkpoint->pending_ranking = engine->pending_ranking;
+    checkpoint->pending_top_k_count = engine->pending_top_k_count;
+    checkpoint->pending_decision_config = engine->pending_decision_config;
+    checkpoint->pending_decision_id = engine->pending_decision_id;
+    checkpoint->pending_candidate_count = engine->pending_candidate_count;
+    checkpoint->pending_rank_top_k = engine->pending_rank_top_k;
+    checkpoint->pending_rank_diagnostics = engine->pending_rank_diagnostics;
+    checkpoint->pending_region_count = engine->pending_region_count;
+    checkpoint->pending_consensus_count = engine->pending_consensus_count;
+    checkpoint->graph_hash = engine->graph_hash;
+    status = copy_real_vector_owned(checkpoint->allocator, engine->pending_context, engine->pending_context_length, &checkpoint->pending_context);
+    if (status != BOLR_OK) return status;
+    status = copy_index_array(checkpoint->allocator, engine->pending_top_k, engine->pending_top_k_count, &checkpoint->pending_top_k);
+    if (status != BOLR_OK) return status;
+    status = copy_real_vector_owned(checkpoint->allocator, engine->pending_score_mean, engine->pending_candidate_count, &checkpoint->pending_score_mean);
+    if (status != BOLR_OK) return status;
+    status = copy_real_vector_owned(checkpoint->allocator, engine->pending_score_variance, engine->pending_candidate_count, &checkpoint->pending_score_variance);
+    if (status != BOLR_OK) return status;
+    /* Rank/top-k arrays are optional: capture_prediction_pending only allocates them when present. */
+    if (engine->pending_probability_best != NULL) {
+        status = copy_real_vector_owned(checkpoint->allocator, engine->pending_probability_best, engine->pending_candidate_count, &checkpoint->pending_probability_best);
+        if (status != BOLR_OK) return status;
+    }
+    if (engine->pending_expected_rank != NULL) {
+        status = copy_real_vector_owned(checkpoint->allocator, engine->pending_expected_rank, engine->pending_candidate_count, &checkpoint->pending_expected_rank);
+        if (status != BOLR_OK) return status;
+    }
+    if (engine->pending_rank_stddev != NULL) {
+        status = copy_real_vector_owned(checkpoint->allocator, engine->pending_rank_stddev, engine->pending_candidate_count, &checkpoint->pending_rank_stddev);
+        if (status != BOLR_OK) return status;
+    }
+    if (engine->pending_probability_top_k != NULL) {
+        status = copy_real_vector_owned(checkpoint->allocator, engine->pending_probability_top_k, engine->pending_candidate_count, &checkpoint->pending_probability_top_k);
+        if (status != BOLR_OK) return status;
+    }
+    status = copy_index_array(checkpoint->allocator, engine->pending_consensus_indices, engine->pending_consensus_count, &checkpoint->pending_consensus_indices);
+    if (status != BOLR_OK) return status;
+    if (engine->pending_region_count > 0) {
+        size_t bytes;
+        if (bolr_checked_size_mul((size_t) engine->pending_region_count, sizeof(bolr_region_summary), &bytes) != BOLR_OK) return BOLR_DIMENSION_OVERFLOW;
+        checkpoint->pending_region_summaries = (bolr_region_summary *) bolr_allocator_malloc(checkpoint->allocator, bytes);
+        if (checkpoint->pending_region_summaries == NULL) return BOLR_ALLOCATION_FAILED;
+        memcpy(checkpoint->pending_region_summaries, engine->pending_region_summaries, bytes);
+    }
+    return BOLR_OK;
+}
+
+static bolr_status copy_checkpoint_pending_to_engine(const struct bolr_replay_checkpoint *checkpoint, struct bolr_replay_engine *engine) {
+    bolr_status status;
+    destroy_engine_pending_arrays(engine);
+    engine->completed_day_index = checkpoint->completed_day_index;
+    engine->pending_context_length = checkpoint->pending_context_length;
+    engine->pending_ranking = checkpoint->pending_ranking;
+    engine->pending_top_k_count = checkpoint->pending_top_k_count;
+    engine->pending_decision_config = checkpoint->pending_decision_config;
+    engine->pending_decision_id = checkpoint->pending_decision_id;
+    engine->pending_candidate_count = checkpoint->pending_candidate_count;
+    engine->pending_rank_top_k = checkpoint->pending_rank_top_k;
+    engine->pending_rank_diagnostics = checkpoint->pending_rank_diagnostics;
+    engine->pending_region_count = checkpoint->pending_region_count;
+    engine->pending_consensus_count = checkpoint->pending_consensus_count;
+    engine->graph_hash = checkpoint->graph_hash;
+    status = copy_real_vector_owned(engine->allocator, checkpoint->pending_context, checkpoint->pending_context_length, &engine->pending_context);
+    if (status != BOLR_OK) return status;
+    status = copy_index_array(engine->allocator, checkpoint->pending_top_k, checkpoint->pending_top_k_count, &engine->pending_top_k);
+    if (status != BOLR_OK) return status;
+    status = copy_real_vector_owned(engine->allocator, checkpoint->pending_score_mean, checkpoint->pending_candidate_count, &engine->pending_score_mean);
+    if (status != BOLR_OK) return status;
+    status = copy_real_vector_owned(engine->allocator, checkpoint->pending_score_variance, checkpoint->pending_candidate_count, &engine->pending_score_variance);
+    if (status != BOLR_OK) return status;
+    if (checkpoint->pending_probability_best != NULL) {
+        status = copy_real_vector_owned(engine->allocator, checkpoint->pending_probability_best, checkpoint->pending_candidate_count, &engine->pending_probability_best);
+        if (status != BOLR_OK) return status;
+    }
+    if (checkpoint->pending_expected_rank != NULL) {
+        status = copy_real_vector_owned(engine->allocator, checkpoint->pending_expected_rank, checkpoint->pending_candidate_count, &engine->pending_expected_rank);
+        if (status != BOLR_OK) return status;
+    }
+    if (checkpoint->pending_rank_stddev != NULL) {
+        status = copy_real_vector_owned(engine->allocator, checkpoint->pending_rank_stddev, checkpoint->pending_candidate_count, &engine->pending_rank_stddev);
+        if (status != BOLR_OK) return status;
+    }
+    if (checkpoint->pending_probability_top_k != NULL) {
+        status = copy_real_vector_owned(engine->allocator, checkpoint->pending_probability_top_k, checkpoint->pending_candidate_count, &engine->pending_probability_top_k);
+        if (status != BOLR_OK) return status;
+    }
+    status = copy_index_array(engine->allocator, checkpoint->pending_consensus_indices, checkpoint->pending_consensus_count, &engine->pending_consensus_indices);
+    if (status != BOLR_OK) return status;
+    if (checkpoint->pending_region_count > 0) {
+        size_t bytes;
+        if (bolr_checked_size_mul((size_t) checkpoint->pending_region_count, sizeof(bolr_region_summary), &bytes) != BOLR_OK) return BOLR_DIMENSION_OVERFLOW;
+        engine->pending_region_summaries = (bolr_region_summary *) bolr_allocator_malloc(engine->allocator, bytes);
+        if (engine->pending_region_summaries == NULL) return BOLR_ALLOCATION_FAILED;
+        memcpy(engine->pending_region_summaries, checkpoint->pending_region_summaries, bytes);
+    }
     return BOLR_OK;
 }
 
@@ -217,6 +492,7 @@ void bolr_replay_engine_destroy(bolr_replay_engine *opaque) {
     struct bolr_replay_engine *engine = opaque;
     if (engine == NULL) return;
     destroy_transition_storage(engine);
+    destroy_engine_pending_arrays(engine);
     bolr_adaptive_state_destroy(engine->adaptive_state);
     bolr_gaussian_state_destroy(engine->posterior);
     bolr_gaussian_state_destroy(engine->pending_predictive);
@@ -339,6 +615,24 @@ bolr_status bolr_replay_engine_begin_day(
         }
     }
     status = bolr_decision_policy_apply(decision_policy, prediction, regions, graph, &decision, &decision_diag);
+    if (status != BOLR_OK) {
+        bolr_region_set_destroy(regions);
+        bolr_posterior_prediction_destroy(prediction);
+        bolr_gaussian_state_destroy(predictive);
+        bolr_adaptive_state_destroy(adaptive_clone);
+        bolr_rng_destroy(rng_clone);
+        return status;
+    }
+    status = capture_prediction_pending(engine, prediction, top_k_values, top_k_count, &rank_diag);
+    if (status != BOLR_OK) {
+        bolr_region_set_destroy(regions);
+        bolr_posterior_prediction_destroy(prediction);
+        bolr_gaussian_state_destroy(predictive);
+        bolr_adaptive_state_destroy(adaptive_clone);
+        bolr_rng_destroy(rng_clone);
+        return status;
+    }
+    status = capture_region_pending(engine, regions);
     bolr_region_set_destroy(regions);
     bolr_posterior_prediction_destroy(prediction);
     if (status != BOLR_OK) {
@@ -347,12 +641,32 @@ bolr_status bolr_replay_engine_begin_day(
         bolr_rng_destroy(rng_clone);
         return status;
     }
+    engine->pending_ranking = *ranking;
+    status = copy_index_array(engine->allocator, top_k_values, top_k_count, &engine->pending_top_k);
+    if (status != BOLR_OK) {
+        bolr_gaussian_state_destroy(predictive);
+        bolr_adaptive_state_destroy(adaptive_clone);
+        bolr_rng_destroy(rng_clone);
+        return status;
+    }
+    engine->pending_top_k_count = top_k_count;
+    engine->pending_decision_config = ((const struct bolr_decision_policy *) decision_policy)->config;
+    engine->graph_hash = (graph != NULL) ? bolr_grid_graph_hash(graph) : 0ULL;
+    status = copy_real_array(engine->allocator, context, &engine->pending_context);
+    if (status != BOLR_OK) {
+        bolr_gaussian_state_destroy(predictive);
+        bolr_adaptive_state_destroy(adaptive_clone);
+        bolr_rng_destroy(rng_clone);
+        return status;
+    }
+    engine->pending_context_length = context.length;
     pending_predictive_old = engine->pending_predictive;
     old_rng = engine->rng;
     engine->pending_predictive = predictive;
     engine->rng = rng_clone;
     engine->phase = BOLR_REPLAY_PHASE_AWAITING_OUTCOME;
     engine->pending_decision = decision;
+    engine->pending_decision_id = hash_pending_decision_id(&decision, &engine->pending_decision_config, engine->graph_hash);
     if (engine->adaptive_enabled) {
         bolr_adaptive_state_destroy(engine->adaptive_state);
         engine->adaptive_state = adaptive_clone;
@@ -478,6 +792,8 @@ bolr_status bolr_replay_engine_finish_day(
         out_diagnostics->adaptive_applied = engine->adaptive_enabled ? 1 : 0;
     }
     zero_decision(&engine->pending_decision);
+    destroy_engine_pending_arrays(engine);
+    engine->completed_day_index += 1;
     return BOLR_OK;
 }
 
@@ -518,6 +834,8 @@ bolr_status bolr_replay_engine_export_checkpoint(
         status = checkpoint_copy_transition(checkpoint, &engine->transition, bolr_gaussian_state_dimension(engine->posterior));
         if (status != BOLR_OK) { bolr_replay_checkpoint_destroy(checkpoint); return status; }
     }
+    status = copy_engine_pending_to_checkpoint(engine, checkpoint);
+    if (status != BOLR_OK) { bolr_replay_checkpoint_destroy(checkpoint); return status; }
     *out_checkpoint = checkpoint;
     return BOLR_OK;
 }
@@ -543,6 +861,8 @@ static bolr_status import_common_checkpoint(
         if (status != BOLR_OK) { bolr_replay_engine_destroy(engine); return status; }
     }
     status = bolr_rng_import(checkpoint->rng_checkpoint, active, &engine->rng);
+    if (status != BOLR_OK) { bolr_replay_engine_destroy(engine); return status; }
+    status = copy_checkpoint_pending_to_engine(checkpoint, engine);
     if (status != BOLR_OK) { bolr_replay_engine_destroy(engine); return status; }
     *out_engine = engine;
     return BOLR_OK;
@@ -590,11 +910,28 @@ void bolr_replay_checkpoint_destroy(bolr_replay_checkpoint *opaque) {
     struct bolr_replay_checkpoint *checkpoint = opaque;
     if (checkpoint == NULL) return;
     destroy_checkpoint_transition_storage(checkpoint);
+    destroy_checkpoint_pending_arrays(checkpoint);
     bolr_checkpoint_state_destroy(checkpoint->posterior_checkpoint);
     bolr_checkpoint_state_destroy(checkpoint->pending_predictive_checkpoint);
     bolr_rng_checkpoint_destroy(checkpoint->rng_checkpoint);
     bolr_allocator_free(checkpoint->allocator, checkpoint->adaptive_state_bytes);
     bolr_allocator_free(checkpoint->allocator, checkpoint);
+}
+
+void bolr_replay_checkpoint_destroy_pending(bolr_replay_checkpoint *opaque) {
+    struct bolr_replay_checkpoint *checkpoint = opaque;
+    if (checkpoint == NULL) return;
+    destroy_checkpoint_transition_storage(checkpoint);
+    destroy_checkpoint_pending_arrays(checkpoint);
+    bolr_checkpoint_state_destroy(checkpoint->posterior_checkpoint);
+    bolr_checkpoint_state_destroy(checkpoint->pending_predictive_checkpoint);
+    bolr_rng_checkpoint_destroy(checkpoint->rng_checkpoint);
+    bolr_allocator_free(checkpoint->allocator, checkpoint->adaptive_state_bytes);
+    checkpoint->posterior_checkpoint = NULL;
+    checkpoint->pending_predictive_checkpoint = NULL;
+    checkpoint->rng_checkpoint = NULL;
+    checkpoint->adaptive_state_bytes = NULL;
+    checkpoint->adaptive_state_size = 0U;
 }
 
 bolr_replay_phase bolr_replay_checkpoint_phase(const bolr_replay_checkpoint *opaque) {

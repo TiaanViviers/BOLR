@@ -63,6 +63,26 @@ class CCheckpointError(CBackendError):
     pass
 
 
+class CCheckpointVersionError(CCheckpointError):
+    pass
+
+
+class CCheckpointCorruptionError(CCheckpointError):
+    pass
+
+
+class CCheckpointCompatibilityError(CCheckpointError):
+    pass
+
+
+class CCheckpointLimitError(CCheckpointError):
+    pass
+
+
+class CCheckpointIOError(CCheckpointError):
+    pass
+
+
 class CUnsupportedOperationError(CBackendError):
     pass
 
@@ -80,9 +100,18 @@ _STATUS_TO_EXCEPTION = {
     8: CNumericalFailureError,
     9: CSchemaMismatchError,
     10: CVersionMismatchError,
-    11: CCheckpointError,
+    11: CCheckpointCompatibilityError,
     12: CUnsupportedOperationError,
     13: CClosedHandleError,
+    14: CCheckpointCorruptionError,
+    15: CCheckpointVersionError,
+    16: CCheckpointCorruptionError,
+    17: CCheckpointCorruptionError,
+    18: CCheckpointCorruptionError,
+    19: CCheckpointCorruptionError,
+    20: CCheckpointCorruptionError,
+    21: CCheckpointLimitError,
+    22: CCheckpointIOError,
 }
 
 BolrCError = CBackendError

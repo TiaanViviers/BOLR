@@ -38,6 +38,12 @@ int main(void) {
     if (test_sampling() != 0) { fprintf(stderr, "test_sampling failed\n"); failures += 1; }
     if (test_rank_accumulator() != 0) { fprintf(stderr, "test_rank_accumulator failed\n"); failures += 1; }
     if (test_replay() != 0) { fprintf(stderr, "test_replay failed\n"); failures += 1; }
+    if (test_checkpoint_header() != 0) { fprintf(stderr, "test_checkpoint_header failed\n"); failures += 1; }
+    if (test_checkpoint_sections() != 0) { fprintf(stderr, "test_checkpoint_sections failed\n"); failures += 1; }
+    if (test_checkpoint_codec() != 0) { fprintf(stderr, "test_checkpoint_codec failed\n"); failures += 1; }
+    if (test_checkpoint_corruption() != 0) { fprintf(stderr, "test_checkpoint_corruption failed\n"); failures += 1; }
+    if (test_checkpoint_file() != 0) { fprintf(stderr, "test_checkpoint_file failed\n"); failures += 1; }
+    if (test_checkpoint_restart() != 0) { fprintf(stderr, "test_checkpoint_restart failed\n"); failures += 1; }
     if (test_posterior_objective() != 0) { fprintf(stderr, "test_posterior_objective failed\n"); failures += 1; }
     if (test_newton() != 0) { fprintf(stderr, "test_newton failed\n"); failures += 1; }
     if (test_laplace() != 0) { fprintf(stderr, "test_laplace failed\n"); failures += 1; }
