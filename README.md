@@ -1,131 +1,212 @@
 # BOLR
-Bayesian Online Listwise Ranking for applications to quantative trading
 
-## Phase Status
+**Bayesian Online Listwise Ranking** for quantitative trading research.
 
-- Phase A/B: complete and frozen
-- Phase C: complete
-- Phase D first slice: complete
-- Phase E0: complete
-- Phase F: Candidate B mathematics, reduced exact validation, generic Laplace integration, and real-data resume-equivalence are complete; realistic pure-Python Candidate B historical execution is deferred
-- Phase G: multi-block score/state architecture, composite Laplace compatibility, backend contracts, and golden numerical fixtures are implemented
-- Phase H: structured priors, penalty-shaped block dynamics, structured static fitting, diagnostics, and golden structured-prior fixtures are implemented
-- Phase I: orthogonal graph residual architecture, constrained spectral basis construction, graph priors/dynamics, and graph-residual smoke coverage are implemented
-- Phase J: generic composite replay, causal adaptive transition policies, online surprise standardisation, BOCPD-backed adaptation, and adaptive golden fixtures are implemented
-- Phase K: predictive posterior decision objects, Monte Carlo ranking probabilities, connected-region inference, calibration metrics, decision-policy replay integration, and Phase K golden fixtures are implemented
-- Phase L1: pure-C11 backend foundation, Make build, versioned ABI, allocator/ownership model, checkpoint-ready handles, Candidate A reference kernels, ctypes binding, and initial Python/C equivalence harness are implemented
-- Phase L2: Python-accessible C Gaussian inference integration is complete for Candidate A, including C-owned state/layout/model handles, composite Laplace updates, bounded historical replay equivalence, sequential checkpoint continuity, backend ownership/error handling, isolated build profiles, and a concurrency-safe Python loader; Candidate B, adaptation, decisions, and RNG remain unported
-- Phase L3A: native Candidate A target construction, ordered-partition construction, exact and deterministic-sampled cross-group Candidate B observations, generic Laplace integration, Python/C derivative and Laplace equivalence, bounded sequential Candidate B validation, and compiler/sanitizer coverage are implemented; native RNG, adaptive transitions, and full historical Candidate B replay remain deferred
-- Phase L3B: ABI `1.3.0` native adaptive-transition support is implemented for the reference path, including C11 BOCPD state evolution, causal EW surprise standardisation, blockwise innovation attribution, adaptive additive process-noise policies, pending reset scheduling, adaptive-state checkpoint round-trips, Python ctypes wrappers, and bounded Candidate A/Candidate B sequential equivalence tests; full replay orchestration, native discount-family prediction semantics, RNG, and Fast-BOCPD integration remain deferred
-- Phase L4A: ABI `1.4.0` native deterministic posterior-decision support is implemented, including posterior score summaries, selected score covariance, analytic pairwise win probabilities, canonical-grid consensus regions, connected-component summaries, weighted graph medoids, deterministic candidate and region decision policies, ctypes wrappers, and Python/C equivalence coverage; RNG, posterior sampling, Monte Carlo ranking probabilities, Thompson policies, and replay checkpoint composition remain deferred
-- Phase L4B1: ABI `1.5.0` native stochastic posterior-sampling support is implemented, including PCG32 stream-selectable RNG state, immutable 128-layer Ziggurat normals, exact RNG checkpoint export/import, Gaussian posterior state sampling, antithetic sampling, composite score sampling, ctypes wrappers, deterministic integer/checkpoint regression tests, and bounded sampling-moment validation; posterior-rank Monte Carlo summaries, Thompson policies, and replay checkpoint composition remain deferred
-- Phase L4B2: ABI `1.6.0` native Monte Carlo ranking support is implemented, including exact sampled-score rank accumulation, probability-best and probability-top-k summaries, expected rank, rank standard deviation, optional retained score samples, Thompson sample-zero selection, ctypes wrappers, GCC/Clang/sanitizer coverage, and Python/C retained-sample equivalence tests; streaming accumulation, replay state machines, and durable checkpoint files remain deferred
-- Phase L4B2.2: ABI `1.7.0` native bounded-memory replay support is implemented, including streaming Monte Carlo rank accumulation with optional sample-zero retention, exact reusable rank accumulators, a native causal replay state machine, in-memory ready/pending replay checkpoints, fixed and adaptive replay handles, Candidate A and Candidate B replay integration, transactional failure semantics, ctypes bindings, and native/Python checkpoint-resume equivalence coverage
-- Phase L4B2.3: ABI `1.8.0` versioned portable checkpoint codec and atomic file persistence are implemented, including little-endian sectioned format `v1.0` (`BOLRCP01`), CRC32 integrity checks, ready/pending encode-decode, restore-context validation, atomic POSIX write/read, injectable I/O failure hooks, Python byte/file wrappers, golden fixtures, and file-based replay restart coverage
-- Phase L5.1: full native Candidate A historical replay harness is implemented, including Python orchestration around the C replay engine, durable checkpoint scheduling, forced ready/pending restart, daily/manifest/summary outputs, timing diagnostics, fixed-transition historical runs, and bounded adaptive fixture coverage; a documented full-YM command is provided, and smoke/restart historical executions validate the harness (full-period production evidence remains an operator run, not a pytest gate)
-- Phase L5.2: Candidate A policy/static-baseline matrix is implemented, including always-41, warm-up static, trailing mean, oracle replay static, and Candidate A fixed/adaptive × {posterior_mean, probability_best, Thompson} comparison with selection/turnover/bad-switch and candidate-41 delta diagnostics. L5.1 finding: Candidate A fixed/probability-best behaved almost statically (candidate 41). L5.2 compares Candidate A policies against static and trailing baselines.
-- Phase L5.3: native Candidate B sampled historical replay harness is implemented, including SoftTarget warm-up shared with L5.1/L5.2, deterministic pair sampling (`budget=4096`), durable ready/pending restart, pair/selection/calibration diagnostics, L5.2 comparison import, and matrix CLI; full 450-day matrix completed — fixed Thompson beat always-41 observationally (+359), while probability-best collapsed to candidate 41
-- Phase L5.4: Candidate B fixed Thompson robustness audit completed — 30/30 RNG streams; **share_beating_41 = 26.7%**, median Δ vs 41 = −1318; L5.3 +359 was stream-3 luck; **pause** (do not tune)
+BOLR scores a large candidate configuration grid each trading day, updates a Gaussian posterior online from realised outcomes, and selects a configuration under posterior decision policies (posterior mean, probability-best, Thompson).
 
-## C Backend ABI
+This repository contains:
 
-- Current native ABI: `1.8.0`
-- Checkpoint format: `1.0` (`BOLRCP01`)
-- Release gate validated for L5.4:
-  - `make -C csrc BUILD_DIR=build/l54-debug-gcc clean test CC=gcc`
-  - `make -C csrc BUILD_DIR=build/l54-debug-clang clean test CC=clang`
-  - `make -C csrc BUILD_DIR=build/l54-sanitize-gcc clean sanitize CC=gcc`
-  - `make -C csrc BUILD_DIR=build/l54-release-gcc clean release CC=gcc`
-  - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q tests/c_backend`
-  - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q`
-  - documented commands in `research_docs/25_L5_4_Candidate_B_Thompson_Robustness_Audit.md`
+- a frozen **Python mathematical reference** (Phases A–K)
+- a pure **C11 inference/replay backend** (ABI `1.8.0`) with ctypes bindings
+- durable **checkpoint** persistence (`BOLRCP01` v1.0)
+- native **historical replay** harnesses and evaluation matrices (Phase L5)
 
-## L4B2 Ranking Notes
+License: [MIT](LICENSE).
 
-- Native RNG: PCG32 XSH-RR with explicit `(seed, stream)` selection, where `inc = (stream << 1) | 1`.
-- Native normal sampler: immutable 128-layer Marsaglia-Tsang Ziggurat with committed lookup tables and no mutable global state.
-- Native checkpoint scope: exact continuation of the PCG/Ziggurat stream on supported Linux GCC/Clang builds through `bolr_rng_checkpoint`.
-- Gaussian sampling: one Cholesky factorization per call, optional antithetic ordering matched to the Python reference convention, and caller-owned row-major output buffers.
-- Remaining reproducibility caveat: the integer stream is exact by construction; normal draws rely on `libm` for `exp` and `log`, so cross-platform bitwise identity is only claimed for the validated Linux toolchains above.
-- Rank ordering semantics are frozen to the Python reference: stable descending score sort with original candidate index tie-breaks, ranks numbered `1..N`, and winner equal to rank-1 under that stable order.
-- Retained score samples are optional and diagnostic. The current `bolr_posterior_prediction_monte_carlo_rank()` path may retain all score samples for debugging and equivalence, but production replay will move to streaming accumulation by default.
-- Thompson selection is frozen to Monte Carlo sample `0`. Future chunked replay must preserve sample `0` exactly but does not need to retain the full sampled-score matrix.
-- L4B2.2 extends this with `bolr_posterior_prediction_monte_carlo_rank_streaming()`, which accumulates exact rank statistics in chunks and can retain only sample `0` for Thompson semantics.
-- L4B2.2 also adds a native daily replay state machine with exact in-memory checkpoint export/import for both ready and pending states.
-- L4B2.3 adds portable sectioned binary checkpoints (`BOLRCP01` v1.0) with CRC32 integrity, atomic POSIX persistence, and file-based ready/pending restart.
-- L5.1 adds the native Candidate A historical replay harness with durable checkpoint restart.
-- L5.2 adds Candidate A policy/static-baseline comparison.
-- L5.3 adds native Candidate B sampled historical replay and L5.2 comparison import.
-- L5.4 audits Candidate B fixed Thompson robustness across RNG streams, splits, and costs.
+---
 
-## L4A Integration Notes
+## What problem it solves
 
-Two aliasing defects were found and corrected while integrating deterministic posterior decisions through the end-to-end native path:
+Each day the system faces ~1,400 candidate *(entry, stop)* configurations. The goal is not to forecast a single price path, but to maintain a posterior over a smooth score surface and pick a configuration before outcomes are known.
 
-- Posterior-prediction score-buffer alias:
-  - `bolr_posterior_prediction_create()` originally reused the workspace score buffer as both internal scratch and output storage, which doubled dynamic score contributions in composite models.
-  - Regression coverage: `csrc/tests/test_score_uncertainty.c` and `tests/c_backend/test_c_posterior_decision.py`.
-- Composite-forward scratch-buffer alias:
-  - `bolr_model_forward()` originally reused a score scratch buffer across blocks without clearing it before each block forward pass, which leaked prior block contributions into later block accumulations.
-  - Regression coverage: `csrc/tests/test_score_uncertainty.c`, `csrc/tests/test_decision_policy.c`, and `tests/c_backend/test_c_posterior_decision.py`.
+Two observation models were studied:
 
-## Phase A/B Baseline
+| Model | Idea |
+| --- | --- |
+| **Candidate A** | Soft-target / generalized-Bayes observation from daily PnL utilities |
+| **Candidate B** | Ordered-partition pairwise ranking (sampled cross-group logistic pairs) |
 
-The current repository contains the structural foundation for the first BOLR reference implementation:
+Transitions may be fixed (additive process noise) or adaptive (BOCPD-backed). Decisions may be posterior-mean, Monte Carlo probability-best, or Thompson (sample-zero).
 
-- canonical candidate-grid loading from `data/YM_grid.csv`
-- log-coordinate transformation over `entry_percentage` and `sl_trail_percentage`
-- tensor-product B-spline candidate basis with centering and rank reduction
-- selected-column context basis
-- explicit and structured dynamic design construction
-- Candidate A tolerance-aware soft-target generalized-Bayes kernels
-- unit, numerical, derivative, and integration tests
+---
 
-Run the validation summary with:
+## Repository layout
 
-```bash
-source ~/environments/pyenv/bin/activate
-python scripts/validate_foundation.py
+```text
+bolr/           Python reference + evaluation harnesses
+csrc/           Pure C11 backend (Make build, ABI, tests)
+scripts/        Replay / matrix / robustness CLIs
+tests/          Python + ctypes equivalence tests
+research_docs/  Design notes and phase write-ups
+data/           Candidate grid (+ local historical parquet; not always in git)
+outputs/        Local run artefacts (gitignored under outputs/l5_*/)
 ```
 
-Run the full test suite with:
+---
 
-```bash
-source ~/environments/pyenv/bin/activate
-python -m pytest -q
+## Findings (L5)
+
+Frozen historical protocol:
+
+| Window | Dates | Days |
+| --- | --- | ---: |
+| Warm-up | 2021-01-29 → 2023-01-11 | 504 |
+| Replay | 2023-01-12 → 2024-10-08 | 450 |
+| Candidates | YM grid | 1428 |
+
+**Headline results (observational PnL only):**
+
+| Strategy | Total PnL | vs always-41 | Notes |
+| --- | ---: | ---: | --- |
+| Oracle static best (leakage) | 2865.32 | +1810 | Upper bound only |
+| Candidate A fixed probability-best | 1089.63 | +34 | Nearly static (~candidate 41) |
+| Always candidate 41 | 1055.24 | 0 | Strong static baseline |
+| Candidate B fixed probability-best | 1055.24 | 0 | Collapsed to always-41 |
+| Candidate B fixed Thompson (L5.3 stream) | 1414.72 | +359 | Looked promising once |
+| Candidate B fixed Thompson (30 streams) | median Δ **−1318** | — | **Not robust** (`share_beating_41 = 26.7%`) |
+
+Interpretation:
+
+1. Candidate A’s “best” policy was essentially static.
+2. Candidate B only became dynamic under Thompson, and that edge failed a 30-stream robustness audit.
+3. Further model tuning was paused rather than chasing seed luck.
+
+Details: [`research_docs/23_…`](research_docs/23_L5_2_Candidate_A_Policy_Matrix_and_Static_Baselines.md), [`24_…`](research_docs/24_L5_3_Full_Native_Candidate_B_Historical_Replay.md), [`25_…`](research_docs/25_L5_4_Candidate_B_Thompson_Robustness_Audit.md).
+
+---
+
+## Architecture (short)
+
+```text
+features / basis  →  composite score model  →  Gaussian posterior
+        ↑                                            │
+   daily context                              begin_day → decision
+                                                     │
+                              outcomes → observation → finish_day (Laplace)
+                                                     │
+                                              durable checkpoint
 ```
 
-### Recorded Diagnostics
+- **Python** owns feature construction, warm-up static surface fit, and evaluation orchestration.
+- **C11** owns dense Gaussian inference, observations, ranking/MC decisions, adaptive transitions, replay state machine, and checkpoints.
+- **No leakage rule:** `begin_day()` issues the decision before current-day outcomes are revealed; Candidate A/B observations are built only for `finish_day()`.
 
-Using the real YM configuration grid and the current default tensor basis (`6 x 8`, cubic splines on each axis), the centered candidate basis has:
+Current native ABI: **`1.8.0`**. Checkpoint format: **`1.0` (`BOLRCP01`)**.
 
-- raw width `48`
-- effective rank `p_c = 47`
-- largest retained singular value `5.668189618668`
-- smallest retained singular value `0.295215090099`
-- retained-basis condition number `19.200202864835`
-- maximum absolute centered-column mean `2.552e-16`
+---
 
-This means the first dynamic state dimension is:
+## Quick start
 
-- `P = p_c * p_m`
-- for the intended initial context width `p_m = 6`, `P = 282`
-- the current validation script uses a 4-dimensional demo context basis, so its explicit design has width `47 * 4 = 188`
+### Requirements
 
-Candidate A derivative baselines from the finite-difference checks are:
+- Python ≥ 3.10 (`numpy`, `pytest`; pandas used by evaluation scripts)
+- GCC or Clang with C11
+- Linux recommended for claimed RNG/checkpoint reproducibility
 
-- score-space gradient max absolute error `7.902353771350e-11`
-- score-space curvature max absolute error `1.010611278054e-05`
-- score-space HVP max absolute error `1.010611278053e-05`
-- parameter-space gradient max absolute error `4.749506343771e-11`
-- parameter-space HVP max absolute error `5.394207672420e-06`
+### Install (editable)
 
-The current soft-target defaults (`kappa = 1`, robust median/MAD-IQR scaling, no tolerance collapse) produce the following representative real-day summaries:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+# evaluation scripts also expect pandas/pyarrow for parquet workflows
+pip install pandas pyarrow
+```
 
-| Case | Day | Entropy | Perplexity | Max target mass | Clipping fraction | Utility scale | All irrelevant |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Lowest entropy | `2016.12.23` | `5.356071758224` | `211.890950569241` | `0.011999507142` | `0.264705882353` | `0.000001000000` | `False` |
-| Median entropy | `2013.09.24` | `6.022378120705` | `412.558544062667` | `0.012234416258` | `0.044117647059` | `8.369276999999` | `False` |
-| Highest entropy | `2019.07.04` | `7.264030142900` | `1427.999999999998` | `0.000700280112` | `0.000000000000` | `0.000001000000` | `True` |
+### Build & test the C backend
 
-The highest-entropy case is effectively uniform across all `1,428` candidates and is currently flagged as `all_irrelevant`, which is the expected baseline behavior for a fully degenerate utility day.
+```bash
+make -C csrc BUILD_DIR=build/debug-gcc clean test CC=gcc
+make -C csrc BUILD_DIR=build/debug-clang clean test CC=clang
+make -C csrc BUILD_DIR=build/sanitize-gcc clean sanitize CC=gcc
+make -C csrc BUILD_DIR=build/release-gcc clean release CC=gcc
+```
+
+### Python tests
+
+```bash
+PYTHONPATH=. python -m pytest -q
+PYTHONPATH=. python -m pytest -q tests/c_backend
+```
+
+The ctypes layer auto-builds an isolated debug shared library under `csrc/build/python-debug-gcc/` when needed.
+
+### Foundation smoke
+
+```bash
+PYTHONPATH=. python scripts/validate_foundation.py
+```
+
+---
+
+## Historical replay CLIs
+
+These are operator runs (full 450-day matrices are slow; not pytest gates).
+
+```bash
+# Candidate A native replay
+PYTHONPATH=. python scripts/run_native_candidate_a_replay.py --help
+
+# Candidate A policy / baseline matrix
+PYTHONPATH=. python scripts/run_l5_candidate_a_policy_matrix.py --help
+
+# Candidate B native replay
+PYTHONPATH=. python scripts/run_native_candidate_b_replay.py --help
+
+# Candidate B matrix (+ optional L5.2 comparison import)
+PYTHONPATH=. python scripts/run_l5_candidate_b_matrix.py --help
+
+# Candidate B Thompson robustness audit
+PYTHONPATH=. python scripts/run_l5_candidate_b_thompson_robustness.py --help
+```
+
+Typical data inputs (local):
+
+- `data/YM_grid.csv` — canonical candidate grid
+- `data/YM_full.parquet` — historical day×candidate PnL / features
+
+---
+
+## Research documentation
+
+Design and phase write-ups live in [`research_docs/`](research_docs/).
+
+| Doc | Topic |
+| --- | --- |
+| [`BOLR_Main.md`](research_docs/BOLR_Main.md) | High-level research narrative |
+| [`12_Python_Reference_Model_Freeze.md`](research_docs/12_Python_Reference_Model_Freeze.md) | Frozen Python reference |
+| [`13_…`–`21_…`](research_docs/) | C11 ABI, inference, decisions, RNG, replay, checkpoints |
+| [`22_L5_1_…`](research_docs/22_L5_1_Full_Native_Candidate_A_Historical_Replay.md) | Native Candidate A historical replay |
+| [`23_L5_2_…`](research_docs/23_L5_2_Candidate_A_Policy_Matrix_and_Static_Baselines.md) | Candidate A policy matrix |
+| [`24_L5_3_…`](research_docs/24_L5_3_Full_Native_Candidate_B_Historical_Replay.md) | Candidate B historical replay |
+| [`25_L5_4_…`](research_docs/25_L5_4_Candidate_B_Thompson_Robustness_Audit.md) | Thompson robustness audit / pause |
+
+---
+
+## Implementation milestones (compact)
+
+| Stage | Status |
+| --- | --- |
+| A–K Python reference (basis, obs models, Laplace, adaptation, decisions) | Frozen |
+| L1–L2 C foundation + Candidate A Laplace path | Done (ABI through early 1.x) |
+| L3A–L3B Candidate B + adaptive transitions | Done |
+| L4A–L4B2.3 Decisions, RNG, MC ranking, replay, checkpoints | Done — ABI **1.8.0** |
+| L5.1–L5.3 Native historical A/B evaluation | Done |
+| L5.4 Thompson robustness | Done — **pause** |
+
+Older per-phase changelog detail is retained in the research docs rather than this README.
+
+---
+
+## Technical notes worth keeping
+
+- **RNG:** PCG32 with explicit `(seed, stream)`; normals via immutable 128-layer Ziggurat. Integer streams are exact; normal draws depend on `libm`, so cross-platform bitwise identity is only claimed for validated Linux GCC/Clang builds.
+- **Thompson:** frozen to Monte Carlo sample `0` (streaming rank accumulators may discard other samples).
+- **Rank ties:** stable descending score sort with original index tie-break; ranks `1..N`.
+- **Checkpoints:** little-endian sectioned `BOLRCP01` with CRC32 and atomic POSIX write/replace.
+
+---
+
+## Disclaimer
+
+PnL figures in this repository are **observational research evidence**, not trading advice. Historical results can reflect leakage (explicitly labelled oracles), seed luck, or protocol choices. Always-41 and related static baselines are part of the evaluation story for a reason.
