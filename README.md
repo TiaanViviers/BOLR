@@ -25,19 +25,20 @@ Bayesian Online Listwise Ranking for applications to quantative trading
 - Phase L5.1: full native Candidate A historical replay harness is implemented, including Python orchestration around the C replay engine, durable checkpoint scheduling, forced ready/pending restart, daily/manifest/summary outputs, timing diagnostics, fixed-transition historical runs, and bounded adaptive fixture coverage; a documented full-YM command is provided, and smoke/restart historical executions validate the harness (full-period production evidence remains an operator run, not a pytest gate)
 - Phase L5.2: Candidate A policy/static-baseline matrix is implemented, including always-41, warm-up static, trailing mean, oracle replay static, and Candidate A fixed/adaptive × {posterior_mean, probability_best, Thompson} comparison with selection/turnover/bad-switch and candidate-41 delta diagnostics. L5.1 finding: Candidate A fixed/probability-best behaved almost statically (candidate 41). L5.2 compares Candidate A policies against static and trailing baselines.
 - Phase L5.3: native Candidate B sampled historical replay harness is implemented, including SoftTarget warm-up shared with L5.1/L5.2, deterministic pair sampling (`budget=4096`), durable ready/pending restart, pair/selection/calibration diagnostics, L5.2 comparison import, and matrix CLI; full 450-day matrix completed — fixed Thompson beat always-41 observationally (+359), while probability-best collapsed to candidate 41
+- Phase L5.4: Candidate B fixed Thompson robustness audit completed — 30/30 RNG streams; **share_beating_41 = 26.7%**, median Δ vs 41 = −1318; L5.3 +359 was stream-3 luck; **pause** (do not tune)
 
 ## C Backend ABI
 
 - Current native ABI: `1.8.0`
 - Checkpoint format: `1.0` (`BOLRCP01`)
-- Release gate validated for L5.3:
-  - `make -C csrc BUILD_DIR=build/l5b-debug-gcc clean test CC=gcc`
-  - `make -C csrc BUILD_DIR=build/l5b-debug-clang clean test CC=clang`
-  - `make -C csrc BUILD_DIR=build/l5b-sanitize-gcc clean sanitize CC=gcc`
-  - `make -C csrc BUILD_DIR=build/l5b-release-gcc clean release CC=gcc`
+- Release gate validated for L5.4:
+  - `make -C csrc BUILD_DIR=build/l54-debug-gcc clean test CC=gcc`
+  - `make -C csrc BUILD_DIR=build/l54-debug-clang clean test CC=clang`
+  - `make -C csrc BUILD_DIR=build/l54-sanitize-gcc clean sanitize CC=gcc`
+  - `make -C csrc BUILD_DIR=build/l54-release-gcc clean release CC=gcc`
   - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q tests/c_backend`
   - `PYTHONPATH=. ~/environments/pyenv/bin/pytest -q`
-  - documented commands in `research_docs/24_L5_3_Full_Native_Candidate_B_Historical_Replay.md`
+  - documented commands in `research_docs/25_L5_4_Candidate_B_Thompson_Robustness_Audit.md`
 
 ## L4B2 Ranking Notes
 
@@ -55,6 +56,7 @@ Bayesian Online Listwise Ranking for applications to quantative trading
 - L5.1 adds the native Candidate A historical replay harness with durable checkpoint restart.
 - L5.2 adds Candidate A policy/static-baseline comparison.
 - L5.3 adds native Candidate B sampled historical replay and L5.2 comparison import.
+- L5.4 audits Candidate B fixed Thompson robustness across RNG streams, splits, and costs.
 
 ## L4A Integration Notes
 
